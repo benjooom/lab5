@@ -1,0 +1,29 @@
+ESTIMATE of time to complete assignment: 50 hours
+
+      Time     Time
+Date  Started  Spent Work completed
+----  -------  ----  --------------
+3/01  10:00am  1:30  Understand Raft conceptually, read Raft paper,
+                     skim spec, and source code.
+
+03/03 3:00pm   2:00  Read Raft paper and spec again, and
+                     started working on part A.
+
+03/04 9:30am   2:00  Worked on part A.
+
+
+               ----
+              42:40  TOTAL time spent
+
+I did not discuss this assignment with anyone for more than 10 minutes.
+
+The most difficult part of this assignment was understanding the Raft algorithm.
+It has so many little details, that when misssed, will throw off your solution. Despite
+putting in a lot of time before to understand Raft, when I went to code it, I still misssed
+little nuanced details that are very much present in the paper, but not explicitly spelled out.
+Hence, debugging consumed most of my time. Part C was quite easy when it came to persistance,
+but it uncovered other errors in my code that I spent a lot of time trying to debug and fixed.
+At one point, my code became very clunky so I spent a few hours refactoring it to make it a
+bit cleaner and more efficient. Until I did the lab, I didn't realize how big of a factor choosing
+good election timeouts and heartbeat timeouts are. I spent a lot of time trying to figure out the
+best combination to get an efficient, but robust solution.
