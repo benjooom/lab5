@@ -6,6 +6,8 @@ import (
 	"hash/fnv"
 	"sync"
 
+	"golang.org/x/exp/slices"
+
 	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
@@ -151,6 +153,12 @@ func (server *KvServerImpl) Get(
 
 	// panic("TODO: Part A")
 
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+	// If the shard is not in the nodes' covered shards, error
+	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+
 	if request.Key == "" {
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
@@ -172,6 +180,12 @@ func (server *KvServerImpl) Set(
 	).Trace("node received Set() request")
 
 	// panic("TODO: Part A")
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+	// If the shard is not in the nodes' covered shards, error
+	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+		return &proto.SetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
 
 	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
 	if request.Key == "" {
@@ -195,6 +209,12 @@ func (server *KvServerImpl) Delete(
 	).Trace("node received Delete() request")
 
 	// panic("TODO: Part A")
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+	// If the shard is not in the nodes' covered shards, error
+	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
 
 	if request.Key == "" {
 		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
