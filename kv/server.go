@@ -5,6 +5,8 @@ import (
 	"errors"
 	"hash/fnv"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"golang.org/x/exp/slices"
 
@@ -28,6 +30,7 @@ type KvServerImpl struct {
 
 // Stores all of the state information (stripes)
 type KvServerState struct {
+	killed  int32
 	stripes []*Stripe
 }
 
@@ -44,11 +47,50 @@ type Entry struct {
 }
 
 func makeKvServerState(size int) KvServerState {
+
+	// Initialize all stripes
 	stripes := make([]*Stripe, size)
 	for i := 0; i < size; i++ {
 		stripes[i] = &Stripe{mutex: sync.RWMutex{}, state: make(map[string]Entry)}
 	}
-	return KvServerState{stripes: stripes}
+
+	state := KvServerState{stripes: stripes, killed: 0}
+
+	for _, stripe := range stripes {
+		// Async function to remove expired keys (ttl management)
+		go func(stripe *Stripe, killed *int32) {
+
+			// Loop through entire stripe every second (stop when killed)
+			for atomic.LoadInt32(killed) == 0 {
+
+				// Sleep for 1 second
+				time.Sleep(time.Millisecond * 1000)
+
+				// Read through entire stripe and find expired keys
+				expiredKeys := make([]string, 0)
+				stripe.mutex.RLock()
+				for key, entry := range stripe.state {
+					if time.Now().UnixMilli() > entry.ttl {
+						expiredKeys = append(expiredKeys, key)
+					}
+				}
+				stripe.mutex.RUnlock()
+
+				// Loop through all expired keys and delete them
+				stripe.mutex.Lock()
+				for _, key := range expiredKeys {
+					// Confirm that the key is still expired
+					// (it may have been updated while we were waiting for the lock)
+					if time.Now().UnixMilli() > stripe.state[key].ttl {
+						delete(stripe.state, key)
+					}
+				}
+				stripe.mutex.Unlock()
+			}
+		}(stripe, &state.killed)
+	}
+
+	return state
 }
 
 // Set a key in the database.
@@ -61,24 +103,36 @@ func (database *KvServerState) Set(key string, value string, ttl int64) bool {
 	stripe := database.stripes[hash%len(database.stripes)]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
-	stripe.state[key] = Entry{value, ttl}
+	stripe.state[key] = Entry{value, time.Now().UnixMilli() + ttl}
 	return true
 }
 
 // Gets a key from the database.
 // Returns the value and true if the key was present, false otherwise.
 func (database *KvServerState) Get(key string) (string, bool) {
+
+	// Get the stripe
 	hash, err := fnv.New64().Write([]byte(key))
 	if err != nil {
 		return "", false
 	}
 	stripe := database.stripes[hash%len(database.stripes)]
+
 	stripe.mutex.RLock()
 	defer stripe.mutex.RUnlock()
+
+	// Key not present
 	entry, ok := stripe.state[key]
 	if !ok {
 		return "", false
 	}
+
+	// Expired data
+	if time.Now().UnixMilli() > entry.ttl {
+		return "", false
+	}
+
+	// Key present, not expired
 	return entry.value, true
 }
 
@@ -109,6 +163,8 @@ func (server *KvServerImpl) shardMapListenLoop() {
 	for {
 		select {
 		case <-server.shutdown:
+			// Will stop async ttl management go routines
+			atomic.AddInt32(&server.database.killed, 1)
 			return
 		case <-listener:
 			server.handleShardMapUpdate()
