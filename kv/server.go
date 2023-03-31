@@ -2,9 +2,14 @@ package kv
 
 import (
 	"context"
+	"errors"
+	"hash/fnv"
+	"sync"
 
 	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type KvServerImpl struct {
@@ -15,6 +20,82 @@ type KvServerImpl struct {
 	listener   *ShardMapListener
 	clientPool ClientPool
 	shutdown   chan struct{}
+
+	database KvServerState
+}
+
+// Stores all of the state information (stripes)
+type KvServerState struct {
+	stripes []*Stripe
+}
+
+// Stores varies entries under a lock
+type Stripe struct {
+	mutex sync.RWMutex
+	state map[string]Entry
+}
+
+// Basic value object (value and ttl)
+type Entry struct {
+	value string
+	ttl   int64
+}
+
+func makeKvServerState(size int) KvServerState {
+	stripes := make([]*Stripe, size)
+	for i := 0; i < size; i++ {
+		stripes[i] = &Stripe{mutex: sync.RWMutex{}, state: make(map[string]Entry)}
+	}
+	return KvServerState{stripes: stripes}
+}
+
+// Set a key in the database.
+// Returns true if the key was set, false otherwise.
+func (database *KvServerState) Set(key string, value string, ttl int64) bool {
+	hash, err := fnv.New64().Write([]byte(key))
+	if err != nil {
+		return false
+	}
+	stripe := database.stripes[hash%len(database.stripes)]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	stripe.state[key] = Entry{value, ttl}
+	return true
+}
+
+// Gets a key from the database.
+// Returns the value and true if the key was present, false otherwise.
+func (database *KvServerState) Get(key string) (string, bool) {
+	hash, err := fnv.New64().Write([]byte(key))
+	if err != nil {
+		return "", false
+	}
+	stripe := database.stripes[hash%len(database.stripes)]
+	stripe.mutex.RLock()
+	defer stripe.mutex.RUnlock()
+	entry, ok := stripe.state[key]
+	if !ok {
+		return "", false
+	}
+	return entry.value, true
+}
+
+// Deletes a key from the database.
+// Returns true if the key was present, false otherwise.
+func (database *KvServerState) Delete(key string) bool {
+	hash, err := fnv.New64().Write([]byte(key))
+	if err != nil {
+		return false
+	}
+	stripe := database.stripes[hash%len(database.stripes)]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	_, ok := stripe.state[key]
+	if !ok {
+		return false
+	}
+	delete(stripe.state, key)
+	return true
 }
 
 func (server *KvServerImpl) handleShardMapUpdate() {
@@ -35,12 +116,17 @@ func (server *KvServerImpl) shardMapListenLoop() {
 
 func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *KvServerImpl {
 	listener := shardMap.MakeListener()
+
+	// Number of stripes in the database. You may change this value.
+	stripeCount := 10
+
 	server := KvServerImpl{
 		nodeName:   nodeName,
 		shardMap:   shardMap,
 		listener:   &listener,
 		clientPool: clientPool,
 		shutdown:   make(chan struct{}),
+		database:   makeKvServerState(stripeCount),
 	}
 	go server.shardMapListenLoop()
 	server.handleShardMapUpdate()
@@ -63,7 +149,18 @@ func (server *KvServerImpl) Get(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Get() request")
 
-	panic("TODO: Part A")
+	// panic("TODO: Part A")
+
+	if request.Key == "" {
+		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	entry, ok := server.database.Get(request.Key)
+	if !ok {
+		return &proto.GetResponse{Value: "", WasFound: false}, nil
+	}
+	return &proto.GetResponse{Value: entry, WasFound: true}, nil
+
 }
 
 func (server *KvServerImpl) Set(
@@ -74,7 +171,19 @@ func (server *KvServerImpl) Set(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Set() request")
 
-	panic("TODO: Part A")
+	// panic("TODO: Part A")
+
+	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
+	if request.Key == "" {
+		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	ok := server.database.Set(request.Key, request.Value, request.TtlMs)
+	if !ok {
+		return &proto.SetResponse{}, errors.New("InternalError Failed to set key")
+	}
+	return &proto.SetResponse{}, nil
+
 }
 
 func (server *KvServerImpl) Delete(
@@ -85,7 +194,19 @@ func (server *KvServerImpl) Delete(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Delete() request")
 
-	panic("TODO: Part A")
+	// panic("TODO: Part A")
+
+	if request.Key == "" {
+		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	ok := server.database.Delete(request.Key)
+	if !ok {
+		// Should never happen
+		return &proto.DeleteResponse{}, nil
+	}
+	return &proto.DeleteResponse{}, nil
+
 }
 
 func (server *KvServerImpl) GetShardContents(
