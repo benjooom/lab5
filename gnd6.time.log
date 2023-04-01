@@ -1,0 +1,22 @@
+ESTIMATE of time to complete assignment: 15 hours
+
+      Time     Time
+Date  Started  Spent Work completed
+----  -------  ----  --------------
+03/29 2:30pm   1:30  Met with the group, read the spec, and divided up work.
+
+03/30 7:00pm   3:30  Began implementing A1, A2, A3. Created a stripe class. And passed all related tests.
+
+03/31 10:30am  2:00  Finished implementing A4 TTL functionality. And passed all server tests.
+
+               ----
+               7:00  TOTAL time spent
+
+I did not discuss this assignment with anyone.
+
+The most difficult part of this assignment was starting off. I was confused with the instructions and
+if I was supposed to implement the sharding functionality for part A. Once I had figured that out, I began
+implementing stripe classes with methods like Get, Set, and Delete to make it easier to implement the cache.
+Once the stripe data store was defined, it became easier to read the spec and implement the cache methods.
+When I began testing part A, I first failed many of the tests for incorrect error messages. It wasn't very clear
+that I needed to create an error with a codes.InvalidArgument. Once I figured that out, I was able to pass all the tests.
