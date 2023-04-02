@@ -4,6 +4,10 @@ import (
 	"context"
 	"time"
 
+	"cs426.yale.edu/lab4/kv/proto"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,7 +34,37 @@ func (kv *Kv) Get(ctx context.Context, key string) (string, bool, error) {
 		logrus.Fields{"key": key},
 	).Trace("client sending Get() request")
 
-	panic("TODO: Part B")
+	// calculate the appropriate shard, using the function in util.go
+	shard := GetShardForKey(key, kv.shardMap.NumShards())
+
+	// Use the provided ShardMap instance in Kv.shardMap to find the set of nodes which host the shard
+	possible_nodes := kv.shardMap.NodesForShard(shard)
+	var node string
+	if len(possible_nodes) > 0 {
+		// for now, just pick the first node
+		node = possible_nodes[0]
+	} else {
+		return "", false, status.Error(codes.NotFound, "Node not available") // TODO: check status code
+	}
+
+	// Use the provided ClientPool.GetClient to get a KvClient to use to send the request
+	// GetClient: returns a KvClient for a given node if one can be created
+	kvClient, client_err := kv.clientPool.GetClient(node)
+
+	if client_err != nil { // For now (though see B3), any errors returned from GetClient or the RPC can be propagated back to the caller as ("", false, err)
+		return "", false, client_err
+	}
+
+	// create a GetRequest and send it with KvClient.Get
+	out, grpc_err := kvClient.Get(ctx, &proto.GetRequest{Key: key})
+
+	if grpc_err != nil {
+		return "", false, grpc_err
+	}
+
+	return out.Value, out.WasFound, nil
+
+	//panic("TODO: Part B")
 }
 
 func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
