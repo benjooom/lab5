@@ -1,21 +1,17 @@
-ESTIMATE of time to complete assignment: 50 hours
+ESTIMATE of time to complete assignment: 15 hours
 
       Time     Time
 Date  Started  Spent Work completed
 ----  -------  ----  --------------
-3/01  10:00am  1:30  Understand Raft conceptually, read Raft paper,
-                     skim spec, and source code.
+3/01  2:30pm   1:30  Met with group to divide lab and discuss spec.
 
-03/03 3:00pm   2:00  Read Raft paper and spec again, and
-                     started working on part A.
-
-03/04 9:30am   2:00  Worked on part A.
+4/01  2:15pm   3:00  Start working on part C; Finsih C1 and C2.
 
 
                ----
               42:40  TOTAL time spent
 
-I did not discuss this assignment with anyone for more than 10 minutes.
+Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
 
 The most difficult part of this assignment was understanding the Raft algorithm.
 It has so many little details, that when misssed, will throw off your solution. Despite

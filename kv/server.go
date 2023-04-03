@@ -26,6 +26,9 @@ type KvServerImpl struct {
 	shutdown   chan struct{}
 
 	database KvServerState
+
+	mySL     sync.RWMutex
+	myShards []int
 }
 
 // Stores all of the state information (stripes)
@@ -156,6 +159,33 @@ func (database *KvServerState) Delete(key string) bool {
 
 func (server *KvServerImpl) handleShardMapUpdate() {
 	// TODO: Part C
+	// Lock reading myShards
+	server.mySL.Lock()
+	defer server.mySL.Unlock()
+
+	// Iterate through all shards in the shard map and find the ones that are assigned to this node
+	shards := server.shardMap.ShardsForNode(server.nodeName)
+	toRemove := make([]int, 0)
+	toAdd := make([]int, 0)
+	for _, shard := range shards {
+		if !slices.Contains(server.myShards, shard) {
+			toAdd = append(toAdd, shard)
+		} else {
+			toRemove = append(toRemove, shard)
+		}
+	}
+
+	// Iterate through database and remove all keys that are in shards that are no longer assigned to this node
+	numShards := server.shardMap.NumShards()
+	for i := range server.database.stripes {
+		for key := range server.database.stripes[i].state {
+			if slices.Contains(toRemove, GetShardForKey(key, numShards)) {
+				server.database.Delete(key)
+			}
+		}
+	}
+
+	server.myShards = shards
 }
 
 func (server *KvServerImpl) shardMapListenLoop() {
@@ -185,6 +215,7 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 		clientPool: clientPool,
 		shutdown:   make(chan struct{}),
 		database:   makeKvServerState(stripeCount),
+		myShards:   make([]int, 0),
 	}
 	go server.shardMapListenLoop()
 	server.handleShardMapUpdate()
@@ -208,12 +239,14 @@ func (server *KvServerImpl) Get(
 	).Trace("node received Get() request")
 
 	// panic("TODO: Part A")
-
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
 	// If the shard is not in the nodes' covered shards, error
-	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.NotFound, "Incorrect shard")
 	}
+	server.mySL.RUnlock()
 
 	if request.Key == "" {
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
@@ -239,9 +272,12 @@ func (server *KvServerImpl) Set(
 
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
 	// If the shard is not in the nodes' covered shards, error
-	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
 		return &proto.SetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
+	server.mySL.RUnlock()
 
 	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
 	if request.Key == "" {
@@ -268,9 +304,12 @@ func (server *KvServerImpl) Delete(
 
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
 	// If the shard is not in the nodes' covered shards, error
-	if !slices.Contains(server.shardMap.ShardsForNode(server.nodeName), shard) {
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
 		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
+	server.mySL.RUnlock()
 
 	if request.Key == "" {
 		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
@@ -289,5 +328,31 @@ func (server *KvServerImpl) GetShardContents(
 	ctx context.Context,
 	request *proto.GetShardContentsRequest,
 ) (*proto.GetShardContentsResponse, error) {
-	panic("TODO: Part C")
+	//panic("TODO: Part C")
+
+	// If the shard is not in the nodes' covered shards, error
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, int(request.Shard)) {
+		server.mySL.RUnlock()
+		return &proto.GetShardContentsResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	values := make([]*proto.GetShardValue, 0)
+	// Check the database for values assigned to a shard
+	numShards := server.shardMap.NumShards()
+	for i := range server.database.stripes {
+		for key := range server.database.stripes[i].state {
+			if GetShardForKey(key, numShards) == int(request.Shard) {
+				remainingTime := server.database.stripes[i].state[key].ttl - time.Now().UnixMilli()
+				newValue := &proto.GetShardValue{Key: key,
+					Value:          server.database.stripes[i].state[key].value,
+					TtlMsRemaining: remainingTime}
+				// Add to list of values
+				values = append(values, newValue)
+			}
+		}
+	}
+
+	return &proto.GetShardContentsResponse{Values: values}, nil
 }
