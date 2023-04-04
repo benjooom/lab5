@@ -2,7 +2,10 @@ package kvtest
 
 import (
 	"testing"
+	"time"
 
+	"cs426.yale.edu/lab4/kv"
+	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,6 +21,25 @@ import (
 // Tests are run from an external package, so you are testing the public API
 // only. You can make methods public (e.g. utils) by making them Capitalized.
 
-func TestYourTest1(t *testing.T) {
-	assert.True(t, true)
+func TestGetShardContentsSimple(t *testing.T) {
+	setup := MakeTestSetup(
+		kv.ShardMapState{
+			NumShards: 1,
+			Nodes:     makeNodeInfos(2),
+			ShardsToNodes: map[int][]string{
+				1: {"n1"},
+			},
+		},
+	)
+
+	// n1 hosts the shard, so we should be able to set data
+	err := setup.NodeSet("n1", "abc", "123", 10*time.Second)
+	assert.Nil(t, err)
+
+	// GetShardContents should return the data we just set
+	val, err := setup.nodes["n1"].GetShardContents(setup.ctx, &proto.GetShardContentsRequest{Shard: 1})
+	assert.Nil(t, err)
+	assert.Equal(t, "123", val.Values[0].Value)
+
+	setup.Shutdown()
 }

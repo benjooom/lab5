@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"hash/fnv"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,7 @@ type KvServerImpl struct {
 	database KvServerState
 
 	mySL     sync.RWMutex
+	rpcMutex sync.RWMutex
 	myShards []int
 }
 
@@ -157,35 +159,124 @@ func (database *KvServerState) Delete(key string) bool {
 	return true
 }
 
+func (server *KvServerImpl) copyShardData(toAdd []int) {
+	// Create a map of all shards toAdd to their current owners
+	shardMap := make(map[int][]string)
+	for i := 0; i < len(toAdd); i++ {
+		shardMap[toAdd[i]] = server.shardMap.NodesForShard(toAdd[i])
+	}
+
+	clientMap := make(map[string]proto.KvClient)
+	for shard, nodes := range shardMap {
+		// Create a client for each owner if it doesn't already exist
+		for _, node := range nodes {
+			// Make sure owner is not this node
+			if node == server.nodeName {
+				continue
+			}
+
+			// Create a client if it doesn't already exist
+			if _, ok := clientMap[node]; !ok {
+				client, err := server.clientPool.GetClient(node)
+				if err != nil {
+					continue
+				}
+				clientMap[node] = client
+			}
+		}
+
+		// Create a list of owners and shuffle it
+		owners := make([]string, len(nodes))
+		copy(owners, nodes)
+		rand.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
+		index := len(owners)
+
+		// While there is an error, keep trying to get data from owners
+		for true {
+			index -= 1
+			if index < 0 { // No GetClient/GetShardContents succeeded
+				break
+			}
+
+			// Retrieve a client from the clientMap at index if it exists
+			_, ok := clientMap[owners[index]]
+			if !ok {
+				continue
+			}
+
+			// Use client to GetShardContents
+			// Create a context with a timeout of 1 second
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+
+			// Get the shard contents from the owner
+			response, err := clientMap[owners[index]].GetShardContents(ctx, &proto.GetShardContentsRequest{Shard: int32(shard)})
+			if err != nil {
+				continue
+			} else {
+				// Add all keys to database from request.Values
+				for i := range response.Values {
+					server.database.Set(response.Values[i].Key, response.Values[i].Value, response.Values[i].TtlMsRemaining)
+				}
+				break
+			}
+		}
+	}
+}
+
 func (server *KvServerImpl) handleShardMapUpdate() {
 	// TODO: Part C
-	// Lock reading myShards
-	server.mySL.Lock()
-	defer server.mySL.Unlock()
+	// Prevent any other RPC, except for GetShardContents
+	server.rpcMutex.Lock()
+	defer server.rpcMutex.Unlock()
+
+	// Get the shards that are assigned to this node and updated shards
+	server.mySL.RLock()
+	myShards := server.myShards
+	updatedShards := server.shardMap.ShardsForNode(server.nodeName)
+	server.mySL.RUnlock()
 
 	// Iterate through all shards in the shard map and find the ones that are assigned to this node
-	shards := server.shardMap.ShardsForNode(server.nodeName)
 	toRemove := make([]int, 0)
 	toAdd := make([]int, 0)
-	for _, shard := range shards {
-		if !slices.Contains(server.myShards, shard) {
-			toAdd = append(toAdd, shard)
-		} else {
+	for _, shard := range myShards {
+		if !slices.Contains(updatedShards, shard) { // Shard is no longer assigned to this node
 			toRemove = append(toRemove, shard)
 		}
+	}
+	for _, shard := range updatedShards {
+		if !slices.Contains(myShards, shard) { // Shard is newly assigned to this node
+			toAdd = append(toAdd, shard)
+		}
+	}
+
+	// If there are shards to add, copy the data from the owners
+	if len(toAdd) != 0 {
+		server.copyShardData(toAdd)
 	}
 
 	// Iterate through database and remove all keys that are in shards that are no longer assigned to this node
 	numShards := server.shardMap.NumShards()
-	for i := range server.database.stripes {
-		for key := range server.database.stripes[i].state {
-			if slices.Contains(toRemove, GetShardForKey(key, numShards)) {
-				server.database.Delete(key)
+	if len(toRemove) != 0 {
+		for i := range server.database.stripes {
+			// Retrieve the state from the stripe
+			server.database.stripes[i].mutex.Lock()
+			state := server.database.stripes[i].state
+			server.database.stripes[i].mutex.Unlock()
+
+			// Iterate over keys in state and delete if they are in a shard that is no longer assigned to this node
+			for key := range state {
+				if slices.Contains(toRemove, GetShardForKey(key, numShards)) {
+					server.database.Delete(key)
+				}
 			}
 		}
 	}
 
-	server.myShards = shards
+	// Update the shards assigned to this node
+	server.mySL.Lock()
+	server.myShards = updatedShards
+	server.mySL.Unlock()
 }
 
 func (server *KvServerImpl) shardMapListenLoop() {
@@ -216,7 +307,10 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 		shutdown:   make(chan struct{}),
 		database:   makeKvServerState(stripeCount),
 		myShards:   make([]int, 0),
+		mySL:       sync.RWMutex{},
+		rpcMutex:   sync.RWMutex{},
 	}
+
 	go server.shardMapListenLoop()
 	server.handleShardMapUpdate()
 	return &server
@@ -239,14 +333,16 @@ func (server *KvServerImpl) Get(
 	).Trace("node received Get() request")
 
 	// panic("TODO: Part A")
+	server.rpcMutex.Lock()
+	defer server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
 	// If the shard is not in the nodes' covered shards, error
 	server.mySL.RLock()
+	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
-		server.mySL.RUnlock()
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.NotFound, "Incorrect shard")
 	}
-	server.mySL.RUnlock()
 
 	if request.Key == "" {
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
@@ -269,15 +365,16 @@ func (server *KvServerImpl) Set(
 	).Trace("node received Set() request")
 
 	// panic("TODO: Part A")
-
+	server.rpcMutex.Lock()
+	defer server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
 	// If the shard is not in the nodes' covered shards, error
 	server.mySL.RLock()
+	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
-		server.mySL.RUnlock()
 		return &proto.SetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
-	server.mySL.RUnlock()
 
 	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
 	if request.Key == "" {
@@ -301,15 +398,16 @@ func (server *KvServerImpl) Delete(
 	).Trace("node received Delete() request")
 
 	// panic("TODO: Part A")
-
+	server.rpcMutex.Lock()
+	defer server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
 	// If the shard is not in the nodes' covered shards, error
 	server.mySL.RLock()
+	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
-		server.mySL.RUnlock()
 		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
-	server.mySL.RUnlock()
 
 	if request.Key == "" {
 		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
@@ -329,29 +427,32 @@ func (server *KvServerImpl) GetShardContents(
 	request *proto.GetShardContentsRequest,
 ) (*proto.GetShardContentsResponse, error) {
 	//panic("TODO: Part C")
-
-	// If the shard is not in the nodes' covered shards, error
+	// GetShardContents should fail if the server does not host the shard, same as all other RPCs.
 	server.mySL.RLock()
 	if !slices.Contains(server.myShards, int(request.Shard)) {
 		server.mySL.RUnlock()
-		return &proto.GetShardContentsResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+		return &proto.GetShardContentsResponse{}, status.Error(codes.NotFound, "Shard not found")
 	}
 	server.mySL.RUnlock()
 
+	// Initialize necessary variables
 	values := make([]*proto.GetShardValue, 0)
-	// Check the database for values assigned to a shard
 	numShards := server.shardMap.NumShards()
-	for i := range server.database.stripes {
-		for key := range server.database.stripes[i].state {
-			if GetShardForKey(key, numShards) == int(request.Shard) {
-				remainingTime := server.database.stripes[i].state[key].ttl - time.Now().UnixMilli()
+
+	for i := range server.database.stripes { // For each stripe
+		server.database.stripes[i].mutex.Lock()
+		for key := range server.database.stripes[i].state { // For each key in the stripe
+			if GetShardForKey(key, numShards) == int(request.Shard) { // If the key is in the shard, add it to the list of values
+				remainingTime := server.database.stripes[i].state[key].ttl - time.Now().UnixMilli() // TtlMsRemaining should be the time remaining between now and the expiry time
 				newValue := &proto.GetShardValue{Key: key,
 					Value:          server.database.stripes[i].state[key].value,
 					TtlMsRemaining: remainingTime}
+
 				// Add to list of values
 				values = append(values, newValue)
 			}
 		}
+		server.database.stripes[i].mutex.Unlock()
 	}
 
 	return &proto.GetShardContentsResponse{Values: values}, nil
