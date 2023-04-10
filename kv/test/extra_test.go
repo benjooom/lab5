@@ -43,3 +43,61 @@ func TestGetShardContentsSimple(t *testing.T) {
 
 	setup.Shutdown()
 }
+
+// Verifies that the shard function consisently returns the same shard for a given key
+func TestConsistentHash(t *testing.T) {
+
+	key := "testKey"
+	numShards := 10
+	shardId1 := kv.GetShardForKey(key, numShards)
+	shardId2 := kv.GetShardForKey(key, numShards)
+	shardId3 := kv.GetShardForKey(key, numShards+1)
+
+	assert.Equal(t, shardId1, shardId2)
+	assert.NotEqual(t, shardId1, shardId3)
+}
+
+// Verifies that the shard management works on 0 TTL values
+func TestZeroTtl(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	_, wasFound, err := setup.NodeGet("n1", "gnd6")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+	// Set a key with 0 TTL
+	err = setup.NodeSet("n1", "gnd6", "gabe", 0*time.Second)
+	assert.Nil(t, err)
+
+	time.Sleep(100 * time.Millisecond)
+
+	_, wasFound, err = setup.NodeGet("n1", "gnd6")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+}
+
+// Verifies that repeated deletes don't destory system state
+func TestRepeatedDelete(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	err := setup.NodeDelete("n1", "alice")
+	assert.Nil(t, err)
+
+	err = setup.NodeSet("n1", "alice", "ben", 10*time.Second)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.NodeGet("n1", "alice")
+	assert.True(t, wasFound)
+	assert.Equal(t, "ben", val)
+	assert.Nil(t, err)
+
+	err = setup.NodeDelete("n1", "alice")
+	assert.Nil(t, err)
+
+	// Repeated delete of the same key should not cause an error
+	err = setup.NodeDelete("n1", "alice")
+	assert.Nil(t, err)
+
+	setup.Shutdown()
+}
