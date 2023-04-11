@@ -134,6 +134,7 @@ func (database *KvServerState) Get(key string) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	logrus.Print("HERE!")
 
 	// Expired data
 	if entry.ttl.Before(time.Now()) {
@@ -333,9 +334,14 @@ func (server *KvServerImpl) Get(
 	// Trace-level logging for node receiving this request (enable by running with -log-level=trace),
 	// feel free to use Trace() or Debug() logging in your code to help debug tests later without
 	// cluttering logs by default. See the logging section of the spec.
+	logrus.Info("HI")
 	logrus.WithFields(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Get() request")
+
+	if request.Key == "" {
+		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
 
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
@@ -370,6 +376,11 @@ func (server *KvServerImpl) Set(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Set() request")
 
+	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
+	if request.Key == "" {
+		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	server.rpcMutex.Unlock()
@@ -403,6 +414,10 @@ func (server *KvServerImpl) Delete(
 	logrus.WithFields(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Delete() request")
+
+	if request.Key == "" {
+		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
 
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()

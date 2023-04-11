@@ -101,3 +101,31 @@ func TestRepeatedDelete(t *testing.T) {
 
 	setup.Shutdown()
 }
+
+// Verifies test expirations are set properly
+func TestProperExpire(t *testing.T) {
+	setup := MakeTestSetup(MakeMultiShardSingleNode())
+
+	err := setup.NodeSet("n1", "alice", "ben", 10*time.Millisecond)
+	assert.Nil(t, err)
+
+	err = setup.NodeSet("n1", "gabe", "ben", 10*time.Millisecond)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.NodeGet("n1", "alice")
+	assert.True(t, wasFound)
+	assert.Equal(t, "ben", val)
+	assert.Nil(t, err)
+
+	time.Sleep(12 * time.Millisecond)
+
+	_, wasFound, err = setup.NodeGet("n1", "alice")
+	assert.False(t, wasFound)
+	assert.Nil(t, err)
+
+	_, wasFound, err = setup.NodeGet("n1", "gabe")
+	assert.False(t, wasFound)
+	assert.Nil(t, err)
+
+	setup.Shutdown()
+}
