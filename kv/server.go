@@ -332,6 +332,10 @@ func (server *KvServerImpl) Get(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Get() request")
 
+	if request.Key == "" {
+		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	defer server.rpcMutex.Unlock()
@@ -342,10 +346,6 @@ func (server *KvServerImpl) Get(
 	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.NotFound, "Incorrect shard")
-	}
-
-	if request.Key == "" {
-		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
 
 	entry, ok := server.database.Get(request.Key)
@@ -364,6 +364,11 @@ func (server *KvServerImpl) Set(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Set() request")
 
+	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
+	if request.Key == "" {
+		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	defer server.rpcMutex.Unlock()
@@ -374,11 +379,6 @@ func (server *KvServerImpl) Set(
 	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
 		return &proto.SetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
-	}
-
-	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
-	if request.Key == "" {
-		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
 
 	ok := server.database.Set(request.Key, request.Value, request.TtlMs)
@@ -397,6 +397,10 @@ func (server *KvServerImpl) Delete(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Delete() request")
 
+	if request.Key == "" {
+		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	defer server.rpcMutex.Unlock()
@@ -407,10 +411,6 @@ func (server *KvServerImpl) Delete(
 	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, shard) {
 		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "Incorrect shard")
-	}
-
-	if request.Key == "" {
-		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
 
 	ok := server.database.Delete(request.Key)
