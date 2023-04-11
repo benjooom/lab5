@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"errors"
-	"hash/fnv"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -36,7 +35,7 @@ type KvServerImpl struct {
 // Stores all of the state information (stripes)
 type KvServerState struct {
 	killed  int32
-	stripes []*Stripe
+	stripes map[int]*Stripe // shard int mapping to stripe
 }
 
 // Stores varies entries under a lock
@@ -54,19 +53,20 @@ type Entry struct {
 func makeKvServerState(size int) KvServerState {
 
 	// Initialize all stripes
-	stripes := make([]*Stripe, size)
+	stripes := make(map[int]*Stripe, size)
 	for i := 0; i < size; i++ {
-		stripes[i] = &Stripe{mutex: sync.RWMutex{}, state: make(map[string]Entry)}
+		// +1 bc shards are 1-indexed
+		stripes[i+1] = &Stripe{mutex: sync.RWMutex{}, state: make(map[string]Entry)}
 	}
 
 	state := KvServerState{stripes: stripes, killed: 0}
 
 	for _, stripe := range stripes {
 		// Async function to remove expired keys (ttl management)
-		go func(stripe *Stripe, killed *int32) {
+		go func(stripe *Stripe, kill *int32) {
 
 			// Loop through entire stripe every second (stop when killed)
-			for atomic.LoadInt32(killed) == 0 {
+			for atomic.LoadInt32(kill) == 0 {
 
 				// Sleep for 1 second
 				time.Sleep(time.Millisecond * 1000)
@@ -80,6 +80,11 @@ func makeKvServerState(size int) KvServerState {
 					}
 				}
 				stripe.mutex.RUnlock()
+
+				// Nothing to delete, go back to sleep!
+				if len(expiredKeys) == 0 {
+					continue
+				}
 
 				// Loop through all expired keys and delete them
 				stripe.mutex.Lock()
@@ -100,12 +105,10 @@ func makeKvServerState(size int) KvServerState {
 
 // Set a key in the database.
 // Returns true if the key was set, false otherwise.
-func (database *KvServerState) Set(key string, value string, ttl int64) bool {
-	hash, err := fnv.New64().Write([]byte(key))
-	if err != nil {
-		return false
-	}
-	stripe := database.stripes[hash%len(database.stripes)]
+func (database *KvServerState) Set(key string, value string, ttl int64, shard int) bool {
+
+	// Get the stripe
+	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 	stripe.state[key] = Entry{value, time.Now().UnixMilli() + ttl}
@@ -114,14 +117,10 @@ func (database *KvServerState) Set(key string, value string, ttl int64) bool {
 
 // Gets a key from the database.
 // Returns the value and true if the key was present, false otherwise.
-func (database *KvServerState) Get(key string) (string, bool) {
+func (database *KvServerState) Get(key string, shard int) (string, bool) {
 
 	// Get the stripe
-	hash, err := fnv.New64().Write([]byte(key))
-	if err != nil {
-		return "", false
-	}
-	stripe := database.stripes[hash%len(database.stripes)]
+	stripe := database.stripes[shard]
 
 	stripe.mutex.RLock()
 	defer stripe.mutex.RUnlock()
@@ -143,12 +142,10 @@ func (database *KvServerState) Get(key string) (string, bool) {
 
 // Deletes a key from the database.
 // Returns true if the key was present, false otherwise.
-func (database *KvServerState) Delete(key string) bool {
-	hash, err := fnv.New64().Write([]byte(key))
-	if err != nil {
-		return false
-	}
-	stripe := database.stripes[hash%len(database.stripes)]
+func (database *KvServerState) Delete(key string, shard int) bool {
+
+	// Get the stripe
+	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 	_, ok := stripe.state[key]
@@ -160,6 +157,7 @@ func (database *KvServerState) Delete(key string) bool {
 }
 
 func (server *KvServerImpl) copyShardData(toAdd []int) {
+
 	// Create a map of all shards toAdd to their current owners
 	shardMap := make(map[int][]string)
 	for i := 0; i < len(toAdd); i++ {
@@ -189,14 +187,9 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 		owners := make([]string, len(nodes))
 		copy(owners, nodes)
 		rand.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
-		index := len(owners)
 
 		// While there is an error, keep trying to get data from owners
-		for true {
-			index -= 1
-			if index < 0 { // No GetClient/GetShardContents succeeded
-				break
-			}
+		for index := len(owners) - 1; index >= 0; index-- {
 
 			// Retrieve a client from the clientMap at index if it exists
 			_, ok := clientMap[owners[index]]
@@ -213,13 +206,21 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 			response, err := clientMap[owners[index]].GetShardContents(ctx, &proto.GetShardContentsRequest{Shard: int32(shard)})
 			if err != nil {
 				continue
-			} else {
-				// Add all keys to database from request.Values
-				for i := range response.Values {
-					server.database.Set(response.Values[i].Key, response.Values[i].Value, response.Values[i].TtlMsRemaining)
-				}
-				break
 			}
+
+			stripe := server.database.stripes[shard]
+			stripe.mutex.Lock()
+
+			// Wipe out the previous data in the stripe
+			stripe.state = make(map[string]Entry)
+
+			// Add all the new data to the stripe
+			for i := range response.Values {
+				stripe.state[response.Values[i].Key] = Entry{response.Values[i].Value, time.Now().UnixMilli() + response.Values[i].TtlMsRemaining}
+			}
+			stripe.mutex.Unlock()
+
+			break
 		}
 	}
 }
@@ -238,16 +239,27 @@ func (server *KvServerImpl) handleShardMapUpdate() {
 
 	// Iterate through all shards in the shard map and find the ones that are assigned to this node
 	toRemove := make([]int, 0)
-	toAdd := make([]int, 0)
 	for _, shard := range myShards {
 		if !slices.Contains(updatedShards, shard) { // Shard is no longer assigned to this node
 			toRemove = append(toRemove, shard)
 		}
 	}
+	toAdd := make([]int, 0)
 	for _, shard := range updatedShards {
 		if !slices.Contains(myShards, shard) { // Shard is newly assigned to this node
 			toAdd = append(toAdd, shard)
 		}
+	}
+
+	server.mySL.Lock()
+	server.myShards = difference(server.myShards, toRemove)
+	server.mySL.Unlock()
+	// Empty out all stripes/shards that are no longer assigned to this node
+	for _, shard := range toRemove {
+		stripe := server.database.stripes[shard]
+		stripe.mutex.Lock()
+		stripe.state = make(map[string]Entry)
+		stripe.mutex.Unlock()
 	}
 
 	// If there are shards to add, copy the data from the owners
@@ -255,28 +267,10 @@ func (server *KvServerImpl) handleShardMapUpdate() {
 		server.copyShardData(toAdd)
 	}
 
-	// Iterate through database and remove all keys that are in shards that are no longer assigned to this node
-	numShards := server.shardMap.NumShards()
-	if len(toRemove) != 0 {
-		for i := range server.database.stripes {
-			// Retrieve the state from the stripe
-			server.database.stripes[i].mutex.Lock()
-			state := server.database.stripes[i].state
-			server.database.stripes[i].mutex.Unlock()
-
-			// Iterate over keys in state and delete if they are in a shard that is no longer assigned to this node
-			for key := range state {
-				if slices.Contains(toRemove, GetShardForKey(key, numShards)) {
-					server.database.Delete(key)
-				}
-			}
-		}
-	}
-
-	// Update the shards assigned to this node
 	server.mySL.Lock()
 	server.myShards = updatedShards
 	server.mySL.Unlock()
+
 }
 
 func (server *KvServerImpl) shardMapListenLoop() {
@@ -297,7 +291,7 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 	listener := shardMap.MakeListener()
 
 	// Number of stripes in the database. You may change this value.
-	stripeCount := 10
+	stripeCount := shardMap.NumShards()
 
 	server := KvServerImpl{
 		nodeName:   nodeName,
@@ -348,7 +342,7 @@ func (server *KvServerImpl) Get(
 		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.NotFound, "Incorrect shard")
 	}
 
-	entry, ok := server.database.Get(request.Key)
+	entry, ok := server.database.Get(request.Key, shard)
 	if !ok {
 		return &proto.GetResponse{Value: "", WasFound: false}, nil
 	}
@@ -381,7 +375,7 @@ func (server *KvServerImpl) Set(
 		return &proto.SetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
 
-	ok := server.database.Set(request.Key, request.Value, request.TtlMs)
+	ok := server.database.Set(request.Key, request.Value, request.TtlMs, shard)
 	if !ok {
 		return &proto.SetResponse{}, errors.New("InternalError Failed to set key")
 	}
@@ -413,7 +407,7 @@ func (server *KvServerImpl) Delete(
 		return &proto.DeleteResponse{}, status.Error(codes.NotFound, "Incorrect shard")
 	}
 
-	ok := server.database.Delete(request.Key)
+	ok := server.database.Delete(request.Key, shard)
 	if !ok {
 		// Should never happen
 		return &proto.DeleteResponse{}, nil
@@ -426,34 +420,27 @@ func (server *KvServerImpl) GetShardContents(
 	ctx context.Context,
 	request *proto.GetShardContentsRequest,
 ) (*proto.GetShardContentsResponse, error) {
-	//panic("TODO: Part C")
-	// GetShardContents should fail if the server does not host the shard, same as all other RPCs.
+
 	server.mySL.RLock()
+	defer server.mySL.RUnlock()
 	if !slices.Contains(server.myShards, int(request.Shard)) {
-		server.mySL.RUnlock()
 		return &proto.GetShardContentsResponse{}, status.Error(codes.NotFound, "Shard not found")
 	}
-	server.mySL.RUnlock()
 
 	// Initialize necessary variables
 	values := make([]*proto.GetShardValue, 0)
-	numShards := server.shardMap.NumShards()
 
-	for i := range server.database.stripes { // For each stripe
-		server.database.stripes[i].mutex.Lock()
-		for key := range server.database.stripes[i].state { // For each key in the stripe
-			if GetShardForKey(key, numShards) == int(request.Shard) { // If the key is in the shard, add it to the list of values
-				remainingTime := server.database.stripes[i].state[key].ttl - time.Now().UnixMilli() // TtlMsRemaining should be the time remaining between now and the expiry time
-				newValue := &proto.GetShardValue{Key: key,
-					Value:          server.database.stripes[i].state[key].value,
-					TtlMsRemaining: remainingTime}
-
-				// Add to list of values
-				values = append(values, newValue)
-			}
+	stripe := server.database.stripes[int(request.Shard)]
+	stripe.mutex.Lock()
+	for key := range stripe.state {
+		newValue := &proto.GetShardValue{
+			Key:            key,
+			Value:          stripe.state[key].value,
+			TtlMsRemaining: stripe.state[key].ttl - time.Now().UnixMilli(),
 		}
-		server.database.stripes[i].mutex.Unlock()
+		values = append(values, newValue)
 	}
+	stripe.mutex.Unlock()
 
 	return &proto.GetShardContentsResponse{Values: values}, nil
 }
