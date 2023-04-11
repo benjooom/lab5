@@ -169,6 +169,7 @@ func TestClientMultiNodeGetLoadBalance(t *testing.T) {
 		assert.True(t, wasFound)
 		assert.Equal(t, "val", val)
 	}
+
 	n1Rpc := setup.clientPool.GetRequestsSent("n1")
 	assert.Less(t, 35, n1Rpc)
 	assert.Greater(t, 65, n1Rpc)
@@ -176,6 +177,7 @@ func TestClientMultiNodeGetLoadBalance(t *testing.T) {
 	n2Rpc := setup.clientPool.GetRequestsSent("n2")
 	assert.Less(t, 35, n2Rpc)
 	assert.Greater(t, 65, n2Rpc)
+
 }
 
 func TestClientMultiNodeGetFailover(t *testing.T) {

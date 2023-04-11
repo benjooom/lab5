@@ -131,9 +131,13 @@ func (database *KvServerState) Get(key string) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	logrus.Print("HERE!")
 
 	// Expired data
 	if time.Now().UnixMilli() > entry.ttl {
+		logrus.WithFields(
+			logrus.Fields{"ttl": entry.ttl, "key": key},
+		).Trace("EXPIRED!")
 		return "", false
 	}
 
@@ -328,6 +332,7 @@ func (server *KvServerImpl) Get(
 	// Trace-level logging for node receiving this request (enable by running with -log-level=trace),
 	// feel free to use Trace() or Debug() logging in your code to help debug tests later without
 	// cluttering logs by default. See the logging section of the spec.
+	logrus.Info("HI")
 	logrus.WithFields(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Get() request")
@@ -450,6 +455,10 @@ func (server *KvServerImpl) GetShardContents(
 
 				// Add to list of values
 				values = append(values, newValue)
+				logrus.Print("GetShardContents: node %s, key %s, ttl %d", server.nodeName, key, remainingTime)
+				/*logrus.WithFields(
+					logrus.Fields{"node": server.nodeName, "key": key, "ttl": remainingTime},
+				).Trace("getShardContents")*/
 			}
 		}
 		server.database.stripes[i].mutex.Unlock()
