@@ -11,19 +11,22 @@ Date  Started  Spent Work completed
 
 4/04  11:00am  2:30  Debug and finish C3.
 
-4/10  2:00pm   2:00  Meet with group to complete part D.
+4/10  2:00pm   3:00  Meet with group to complete part D. Found bugs and started debugging.
+
+04/11 10:00pm  0:30  Met with Xiao to discuss bug.
+
+04/12 10:00am  0:30  Complete part D now that bug is fixed.
+
+04/12 1:00pm   1:00  Create a new test and complete write ups.
                ----
-              42:40  TOTAL time spent
+              14:00  TOTAL time spent
 
-Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
+Besides Alice and Gabe, my group members, and coursestaff I did not speak to anyone for more than 10 minutes.
 
-The most difficult part of this assignment was understanding the Raft algorithm.
-It has so many little details, that when misssed, will throw off your solution. Despite
-putting in a lot of time before to understand Raft, when I went to code it, I still misssed
-little nuanced details that are very much present in the paper, but not explicitly spelled out.
-Hence, debugging consumed most of my time. Part C was quite easy when it came to persistance,
-but it uncovered other errors in my code that I spent a lot of time trying to debug and fixed.
-At one point, my code became very clunky so I spent a few hours refactoring it to make it a
-bit cleaner and more efficient. Until I did the lab, I didn't realize how big of a factor choosing
-good election timeouts and heartbeat timeouts are. I spent a lot of time trying to figure out the
-best combination to get an efficient, but robust solution.
+The most difficult part of the assignment was the learning curve. I was tasked with working on part C in my group
+and efficiently handling shard map updates (copying shard contents as well). I had to first understand part A, which Gabe
+completed, so that I could make adjustments to his implementations that would be compatible with part C. Debugging part C
+was a bit tricky because there were multiple locks involved in my implementation. I had to fix a few race conditions. Once
+we passed all of the tests, as a group we stress tested and found a bug with TTLs. It ultimately ended up being a time unit
+conversion issue where we were using both microseconds and milliseconds. However, this stumped us for quite a while because
+all the debugging showed that our server implementation was solid.

@@ -21,6 +21,7 @@ import (
 // Tests are run from an external package, so you are testing the public API
 // only. You can make methods public (e.g. utils) by making them Capitalized.
 
+// Tests that GetShardContents returns the correct data
 func TestGetShardContentsSimple(t *testing.T) {
 	setup := MakeTestSetup(
 		kv.ShardMapState{
@@ -148,6 +149,40 @@ func TestIntegrationExpire(t *testing.T) {
 	_, wasFound, err = setup.Get("abc")
 	assert.Nil(t, err)
 	assert.False(t, wasFound)
+
+	setup.Shutdown()
+ }
+
+// Check that a key timeout is handled properly from the client-side
+func TestClientTimeout(t *testing.T) {
+	// Similar to TestClientGetSingleNode: one node, one shard,
+	// testing that Set/Delete RPCs are sent.
+	setup := MakeTestSetup(MakeManyNodesWithManyShards(1000, 700))
+
+	err := setup.Set("ben", "val", 1000*time.Millisecond)
+	assert.Nil(t, err)
+	// Sleep for 1 second to ensure that the key expires
+	time.Sleep(1 * time.Second)
+	_, success, err := setup.Get("alice")
+	assert.False(t, success)
+
+	// Set a new key
+	err1 := setup.Set("gabe", "val", 1000*time.Millisecond)
+	_, success, err = setup.Get("gabe")
+	err2 := setup.Set("yang", "val", 1000*time.Millisecond)
+	assert.Nil(t, err1)
+	assert.Nil(t, err2)
+
+	// Get one key
+	assert.True(t, success)
+
+	// Wait til the key expires
+	time.Sleep(1 * time.Second)
+	_, success, err = setup.Get("gabe")
+	assert.False(t, success)
+
+	_, success, err = setup.Get("yang")
+	assert.False(t, success)
 
 	setup.Shutdown()
 
