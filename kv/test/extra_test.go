@@ -129,3 +129,26 @@ func TestProperExpire(t *testing.T) {
 
 	setup.Shutdown()
 }
+
+func TestIntegrationExpire(t *testing.T) {
+
+	// test that relies on client and server to match expiry time
+
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	err := setup.Set("abc", "123", 5*time.Millisecond)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.Get("abc")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+
+	time.Sleep(10 * time.Millisecond)
+	_, wasFound, err = setup.Get("abc")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+	setup.Shutdown()
+
+}
