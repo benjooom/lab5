@@ -8,10 +8,13 @@ Date  Started  Spent Work completed
 04/02  4:00pm  1:00  Got started on part 2A and completed first test
 04/07  2:00pm  1:30  Completed tests for part 2
 04/07  7:00pm  0:30  Wrote answers to discussion questions for part 2
-
+04/10  2:30pm  1:00  Worked with group to debug
+04/11  9:00am  1:00  Wrote unit test cases and looked through logger output
+04/11 10:00pm  0:20  Xiao office hours
+04/12  4:00pm  2:30  Ross office hours and D2 experiments
                ----
-              42:40  TOTAL time spent
+              09:15  TOTAL time spent
 
-Outside of my group, I did not consult any outside sources.
+Outside of my group and Ross's office hours, I did not consult any outside sources.
 
-INCLUDE DESC
+Definitely the most difficult part of this assignment was debugging. I was lucky enough that the client part of the problem set was relatively lighter, and the spec was straightforward. However, I made a very small error with converting the TTL, which led to 2% failure in the stress tester. This taught me the importance of writing strong unit test cases to debug, which could have potentially caught our expiration error. Similarly, I learned how to log output in the debugging process, but I definitely learned how it could be difficult to debug distributed systems where both the client and server are fallible.
