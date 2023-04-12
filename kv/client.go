@@ -121,7 +121,7 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 		go func() {
 			defer wg.Done()
 
-			_, grpc_err := kvClient.Set(ctx, &proto.SetRequest{Key: key, Value: value, TtlMs: int64(ttl)})
+			_, grpc_err := kvClient.Set(ctx, &proto.SetRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds()})
 
 			if grpc_err != nil {
 				err = grpc_err

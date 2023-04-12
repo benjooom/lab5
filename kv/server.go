@@ -106,14 +106,13 @@ func makeKvServerState(size int) KvServerState {
 
 // Set a key in the database.
 // Returns true if the key was set, false otherwise.
-func (database *KvServerState) Set(key string, value string, ttl int64, shard int) bool {
+func (database *KvServerState) Set(key string, value string, expireyTime time.Time, shard int) bool {
 
 	// Get the stripe
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 	// Set expirey time as a time object
-	expireyTime := time.Now().Add(time.Millisecond * time.Duration(ttl))
 	stripe.state[key] = Entry{value, expireyTime}
 	return true
 }
@@ -338,10 +337,6 @@ func (server *KvServerImpl) Get(
 	server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
 
-	if request.Key == "" {
-		return &proto.GetResponse{Value: "", WasFound: false}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
-	}
-
 	// If the shard is not in the nodes' covered shards, error
 	server.mySL.RLock()
 	if !slices.Contains(server.myShards, shard) {
@@ -371,15 +366,12 @@ func (server *KvServerImpl) Set(
 		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
 
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
 	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
-
-	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
-	if request.Key == "" {
-		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
-	}
 
 	// If the shard is not in the nodes' covered shards, error
 	server.mySL.RLock()
@@ -389,7 +381,7 @@ func (server *KvServerImpl) Set(
 	}
 	server.mySL.RUnlock()
 
-	ok := server.database.Set(request.Key, request.Value, request.TtlMs, shard)
+	ok := server.database.Set(request.Key, request.Value, expireyTime, shard)
 	if !ok {
 		return &proto.SetResponse{}, errors.New("InternalError Failed to set key")
 	}
