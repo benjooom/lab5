@@ -24,7 +24,7 @@ Partial failures could lead to inconsistent replicas (i.e. some of the nodes are
 ## Group Work
 
 ### Gabe
-We decided to split the assignment's work according to the parts. I began working on part A server implementation. I worked on this early on so that people working on the Shard Migration wouldn't be blocked from starting their work. Once I finished by portion of the split work, I floated around helping my other project members when they had questions regarding the server I had implemented. We also all worked on the final rigorous tests together.
+We decided to split the assignment's work according to the parts. I began working on part A server implementation. I worked on this early on so that people working on the Shard Migration wouldn't be blocked from starting their work. Once I finished by portion of the split work, I floated around helping my other project members when they had questions regarding the server I had implemented. We also all worked on the final rigorous tests together. We spent a lot of time trying to debug as to why we were only getting 98% accuracy but after logging both on the server and client end I discovered that the TTLs were being set for over a month. This then led me to discover that the TTLs were being converted to nanoseconds on the client side but interpretted and milliseconds on the server side.
 
 ### Alice
 

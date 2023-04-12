@@ -9,10 +9,13 @@ Date  Started  Spent Work completed
 
 03/31 10:30am  2:00  Finished implementing A4 TTL functionality. And passed all server tests.
 
-               ----
-               7:00  TOTAL time spent
+04/10 7:00pm   2:30  Met to discuss part D and realized we had an accuracy issue and began to debug
 
-I did not discuss this assignment with anyone.
+04/11 10:00pm  1:30  Met with Xiao to discuss bug, started logging, and realize TTL unit mixup.
+               ----
+               11:00  TOTAL time spent
+
+I did not discuss this assignment with anyone besides the Teaching Staff (Xiao).
 
 The most difficult part of this assignment was starting off. I was confused with the instructions and
 if I was supposed to implement the sharding functionality for part A. Once I had figured that out, I began
@@ -20,3 +23,5 @@ implementing stripe classes with methods like Get, Set, and Delete to make it ea
 Once the stripe data store was defined, it became easier to read the spec and implement the cache methods.
 When I began testing part A, I first failed many of the tests for incorrect error messages. It wasn't very clear
 that I needed to create an error with a codes.InvalidArgument. Once I figured that out, I was able to pass all the tests.
+We then began to implement part D. We had a bug where we were not properly converting the TTL on the client side.
+Once this issue was resolved, we were able to get 100% accuracy on the stress test and finish the assignment.
