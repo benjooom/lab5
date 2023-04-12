@@ -29,3 +29,4 @@ We decided to split the assignment's work according to the parts. I began workin
 ### Alice
 
 ### Ben
+I worked on part C of the server implementation. I had to wait for Gabe to finish part A to get started with this, but he was very quick so I could get started early. I adjusted Gabe's part A implementation (to agree with part C) and finsihed part C and was passing the remaining server tests. However, when we did stress testing together as a group we encountered a bug where GET was returning expired values. We all spent a lot of time debugging this together and met with Xiao to discuss potential sources of the issue. Ultimately it was a type conversion error. I also contributed to a few of the extra tests of our server, primarily those relevant to part C.
