@@ -444,6 +444,7 @@ func (server *KvServerImpl) GetShardContents(
 	stripe := server.database.stripes[int(request.Shard)]
 	stripe.mutex.Lock()
 	for key := range stripe.state {
+		// If the key is expired, don't copy it
 		newValue := &proto.GetShardValue{
 			Key:            key,
 			Value:          stripe.state[key].value,

@@ -11,11 +11,15 @@ Date  Started  Spent Work completed
 
 4/04  11:00am  2:30  Debug and finish C3.
 
-4/10  2:00pm   2:00  Meet with group to complete part D.
+4/10  2:00pm   3:00  Meet with group to complete part D. Found bugs and started debugging.
+
+04/11 10:00pm  0:30  Met with Xiao to discuss bug.
+
+04/12 10:00pm  0:30  Complete part D now that bug is fixed.
                ----
               42:40  TOTAL time spent
 
-Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
+Besides Alice and Gabe, my group members, and coursestaff I did not speak to anyone for more than 10 minutes.
 
 The most difficult part of this assignment was understanding the Raft algorithm.
 It has so many little details, that when misssed, will throw off your solution. Despite
