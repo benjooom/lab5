@@ -2,24 +2,26 @@
 
 ## A4
 
-What tradeoffs did you make with your TTL strategy? How fast does it clean up data and how expensive is it in terms of number of keys?
+Q: What tradeoffs did you make with your TTL strategy? How fast does it clean up data and how expensive is it in terms of number of keys?
 
-If the server was write intensive, would you design it differently? How so?
+Q: If the server was write intensive, would you design it differently? How so?
 
-The TTL strategy we decided to use involved goroutines running for each stripe in the background and periodically scanning the all the TTLs to determine deletion. One tradeoff to this method is that the values won't be immediately removed from the cache when they're stale but rather must wait until the goroutine is done sleeping. The goroutine must go through all the entries in the cache and check their TTLs each time which increases overhead. However, this does come with the advantage of having a simpler implementation and being easier to debug issues with TTLs and evictions.
+The TTL strategy we decided to use involved goroutines running for each stripe in the background and periodically scanning the all stripes and all the entry TTLs to determine deletion. One tradeoff to this method is that the values won't be immediately removed from the cache when they're stale but rather must wait until the goroutine is done sleeping. The goroutine must go through all the entries in the cache and check their TTLs each time which increases overhead. However, this does come with the advantage of having a simpler implementation and being easier to debug issues with TTLs and evictions.
 
 A write-intensive server would be especially problematic with our implementation, since there would be high lock contention. Our strategy uses a read lock to scan the stripe for stale values and then a write lock to delete them. In a write-heavy environment, the relatively long held read-lock could easily clash with the higher volume of write-locks, thus increasing system latency. Therefore, a strategy to handle the TTL deletion would be to increase the background goroutine sleeptime from 1 second to perhaps a higher value. This would allow for less lock contention during writes, with the tradeoffs of higher memory usage.
 
 ## B2
-What flaws could you see in the load balancing strategy you chose? Consider cases where nodes may naturally have load imbalance already -- a node may have more CPUs available, or a node may have more shards assigned.
 
-What other strategies could help in this scenario? You may assume you can make any changes to the protocol or cluster operation.
+Q: What flaws could you see in the load balancing strategy you chose? Consider cases where nodes may naturally have load imbalance already -- a node may have more CPUs available, or a node may have more shards assigned.
+
+Q: What other strategies could help in this scenario? You may assume you can make any changes to the protocol or cluster operation.
 
 We chose the random load-balancing strategy. One flaw is that if there is a shard with only a few nodes, it might, by random chance, select one node more often and have an imbalanced node. Another (and more probable) flaw is that even if there is a relatively balanced distribution of nodes, it is only optimal if the nodes are well-suited to handle similar loads. As stated in the question, some nodes may have more CPUs or resources available, and should therefore handle more requests, whereas other nodes may be shared between multiple shards, and should therefore have fewer requests in an optimal situation. In these scenarios, possible load-balancing strategies may include using weighing to make some nodes likelier to be selected than others. Another scenario could include implementing health checks to monitor the utilization of each node and selecting nodes with lower resource utilization.
 
 
 ## B3
-For this lab you will try every node until one succeeds. What flaws do you see in this strategy? What could you do to help in these scenarios?
+
+Q: For this lab you will try every node until one succeeds. What flaws do you see in this strategy? What could you do to help in these scenarios?
 
 If certain nodes are disconnected, requests to shards may still try to connect to these nodes as a part of this strategy, which could lead to increases in latency. One possible solution to decrease latency if multiple nodes are tried concurrently, as GET is idempotent. However, this would also have a trade-off of increasing the load on the nodes. This would be especially unideal if the nodes are all healthy, as then, multiple nodes would be contacted when only a single node would suffice.
 
@@ -75,7 +77,7 @@ Total requests: 1658976 = 27648.308072 QPS
     Average latency (get): 1048.53  (set): 918.64
 
 
-DISCUSSION: We were testing to see whether our system could handle high QPS, and whether there would be a difference between high set-QPS and high-get QPS. We were surprised by the first set of results, in which higher queries per second for both get and set (i.e. 2000 QPS for both vs. default options) would result in lower latency. It seemed like increase get-QPS especially decreased latency. Perhaps since get relies on read locks, having a high number of read queries to grab a read lock can decrease read lock contention. However, the fifth trial, with extremely high set-QPS and get-QPS, demonstrates that there is a limit to how many queries the servers can handle. The latency is much higher than the default settings with lower QPS, so we suspect that even higher QPS could lead to unsuccessful requests.
+DISCUSSION: We were testing to see whether our system could handle high QPS, and whether there would be a difference between high set-QPS and high-get QPS. We were surprised by the first set of results, in which higher queries per second for both get and set (i.e. 2000 QPS for both vs. default options) would result in lower latency. It seemed like increase get-QPS especially decreased latency. Perhaps since get relies on read locks, having a high number of read queries to grab a read lock can decrease read lock contention. However, the fifth trial, with extremely high set-QPS and get-QPS, demonstrates that there is a limit to how many queries the servers can handle. The latency is much higher than the default settings with lower QPS, so we suspect that even higher QPS could lead to slower requests as a result of lock contention.
 
 ### EXPERIMENT 2: Hot Keys & Get QPS
 
