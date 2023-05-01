@@ -18,6 +18,12 @@ message DeleteRequest {
 	string key = 1;
 }
 
+message MultiSetRequest {
+	repeated string key = 1;
+	repeated string value = 2;
+	int64 ttl_ms = 3;
+}
+
 message GetResponse {
 	string value = 1;
 	bool was_found = 2;
@@ -26,6 +32,9 @@ message GetResponse {
 message SetResponse {}
 message DeleteResponse {}
 
+message MultiSetResponse {
+	repeated string failed_keys = 1;
+}
 
 message GetShardContentsRequest {
 	int32 shard = 1;
@@ -94,6 +103,8 @@ service Kv {
 	rpc AppendList(AppendListRequest) returns (AppendListResponse);
 	rpc AppendSet(AppendSetRequest) returns (AppendSetResponse);
 	rpc AppendSort(AppendSortRequest) returns (AppendSortResponse);
+
+	rpc MultiSet(MultiSetRequest) returns (MultiSetResponse);
 
 	rpc GetRange(GetRangeRequest) returns (GetRangeResponse);
 
