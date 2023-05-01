@@ -456,3 +456,12 @@ func (server *KvServerImpl) GetShardContents(
 
 	return &proto.GetShardContentsResponse{Values: values}, nil
 }
+
+// LAB 5 NEW FUNCTIONS:
+
+func (server *KvServerImpl) AppendList(
+	ctx context.Context,
+	request *proto.AppendListRequest,
+) (*proto.AppendListResponse, error) {
+	return &proto.AppendListResponse{}, nil
+}
