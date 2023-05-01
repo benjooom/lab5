@@ -31,6 +31,7 @@ type KvClient interface {
 	AppendList(ctx context.Context, in *AppendListRequest, opts ...grpc.CallOption) (*AppendListResponse, error)
 	AppendSet(ctx context.Context, in *AppendSetRequest, opts ...grpc.CallOption) (*AppendSetResponse, error)
 	AppendSort(ctx context.Context, in *AppendSortRequest, opts ...grpc.CallOption) (*AppendSortResponse, error)
+	CAS(ctx context.Context, in *CASRequest, opts ...grpc.CallOption) (*CASResponse, error)
 	GetRange(ctx context.Context, in *GetRangeRequest, opts ...grpc.CallOption) (*GetRangeResponse, error)
 	GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (*GetShardContentsResponse, error)
 }
@@ -124,6 +125,15 @@ func (c *kvClient) AppendSort(ctx context.Context, in *AppendSortRequest, opts .
 	return out, nil
 }
 
+func (c *kvClient) CAS(ctx context.Context, in *CASRequest, opts ...grpc.CallOption) (*CASResponse, error) {
+	out := new(CASResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/CAS", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *kvClient) GetRange(ctx context.Context, in *GetRangeRequest, opts ...grpc.CallOption) (*GetRangeResponse, error) {
 	out := new(GetRangeResponse)
 	err := c.cc.Invoke(ctx, "/kv.Kv/GetRange", in, out, opts...)
@@ -155,6 +165,7 @@ type KvServer interface {
 	AppendList(context.Context, *AppendListRequest) (*AppendListResponse, error)
 	AppendSet(context.Context, *AppendSetRequest) (*AppendSetResponse, error)
 	AppendSort(context.Context, *AppendSortRequest) (*AppendSortResponse, error)
+	CAS(context.Context, *CASRequest) (*CASResponse, error)
 	GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error)
 	GetShardContents(context.Context, *GetShardContentsRequest) (*GetShardContentsResponse, error)
 	mustEmbedUnimplementedKvServer()
@@ -190,6 +201,9 @@ func (UnimplementedKvServer) AppendSet(context.Context, *AppendSetRequest) (*App
 }
 func (UnimplementedKvServer) AppendSort(context.Context, *AppendSortRequest) (*AppendSortResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendSort not implemented")
+}
+func (UnimplementedKvServer) CAS(context.Context, *CASRequest) (*CASResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CAS not implemented")
 }
 func (UnimplementedKvServer) GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRange not implemented")
@@ -372,6 +386,24 @@ func _Kv_AppendSort_Handler(srv interface{}, ctx context.Context, dec func(inter
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Kv_CAS_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CASRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).CAS(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/CAS",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).CAS(ctx, req.(*CASRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Kv_GetRange_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetRangeRequest)
 	if err := dec(in); err != nil {
@@ -450,6 +482,10 @@ var Kv_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AppendSort",
 			Handler:    _Kv_AppendSort_Handler,
+		},
+		{
+			MethodName: "CAS",
+			Handler:    _Kv_CAS_Handler,
 		},
 		{
 			MethodName: "GetRange",

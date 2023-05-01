@@ -91,6 +91,16 @@ message GetRangeResponse {
 	repeated string values = 1;
 }
 
+message CASRequest {
+	string key = 1;
+	string value = 2;
+	string expected = 3;
+	int64 ttl_ms = 4;
+}
+message CASResponse {
+	bool was_set = 1;
+}
+
 service Kv {
 	rpc Get(GetRequest) returns (GetResponse);
 	rpc Set(SetRequest) returns (SetResponse);
@@ -105,6 +115,7 @@ service Kv {
 	rpc AppendSort(AppendSortRequest) returns (AppendSortResponse);
 
 	rpc MultiSet(MultiSetRequest) returns (MultiSetResponse);
+	rpc CAS(CASRequest) returns (CASResponse);
 
 	rpc GetRange(GetRangeRequest) returns (GetRangeResponse);
 
