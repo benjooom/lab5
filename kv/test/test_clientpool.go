@@ -124,7 +124,20 @@ type TestClient struct {
 	setResponse              *proto.SetResponse
 	deleteResponse           *proto.DeleteResponse
 	getShardContentsResponse *proto.GetShardContentsResponse
-	latencyInjection         *time.Duration
+
+	createListResponse      *proto.CreateListResponse
+	createSetResponse       *proto.CreateSetResponse
+	createSortedSetResponse *proto.CreateSortedSetResponse
+
+	appendListResponse      *proto.AppendListResponse
+	appendSetResponse       *proto.AppendSetResponse
+	appendSortedSetResponse *proto.AppendSortedSetResponse
+
+	multiSetResponse *proto.MultiSetResponse
+	cASResponse      *proto.CASResponse
+	getRangeResponse *proto.GetRangeResponse
+
+	latencyInjection *time.Duration
 }
 
 func (c *TestClient) Get(ctx context.Context, req *proto.GetRequest, opts ...grpc.CallOption) (*proto.GetResponse, error) {
@@ -233,4 +246,148 @@ func (c *TestClient) SetLatencyInjection(duration time.Duration) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.latencyInjection = &duration
+}
+
+func (c *TestClient) AppendList(ctx context.Context, req *proto.AppendListRequest, opts ...grpc.CallOption) (*proto.AppendListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.appendListResponse, nil
+	}
+	return c.server.AppendList(ctx, req)
+}
+
+func (c *TestClient) CreateList(ctx context.Context, req *proto.CreateListRequest, opts ...grpc.CallOption) (*proto.CreateListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.createListResponse, nil
+	}
+	return c.server.CreateList(ctx, req)
+}
+
+func (c *TestClient) CreateSet(ctx context.Context, req *proto.CreateSetRequest, opts ...grpc.CallOption) (*proto.CreateSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.createSetResponse, nil
+	}
+	return c.server.CreateSet(ctx, req)
+}
+
+func (c *TestClient) CreateSortedSet(ctx context.Context, req *proto.CreateSortedSetRequest, opts ...grpc.CallOption) (*proto.CreateSortedSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.createSortedSetResponse, nil
+	}
+	return c.server.CreateSortedSet(ctx, req)
+}
+
+func (c *TestClient) AppendSet(ctx context.Context, req *proto.AppendSetRequest, opts ...grpc.CallOption) (*proto.AppendSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.appendSetResponse, nil
+	}
+	return c.server.AppendSet(ctx, req)
+}
+
+func (c *TestClient) AppendSortedSet(ctx context.Context, req *proto.AppendSortedSetRequest, opts ...grpc.CallOption) (*proto.AppendSortedSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.appendSortedSetResponse, nil
+	}
+	return c.server.AppendSortedSet(ctx, req)
+}
+
+func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, opts ...grpc.CallOption) (*proto.MultiSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.multiSetResponse, nil
+	}
+	return c.server.MultiSet(ctx, req)
+}
+
+func (c *TestClient) CAS(ctx context.Context, req *proto.CASRequest, opts ...grpc.CallOption) (*proto.CASResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.cASResponse, nil
+	}
+	return c.server.CAS(ctx, req)
+}
+
+func (c *TestClient) GetRange(ctx context.Context, req *proto.GetRangeRequest, opts ...grpc.CallOption) (*proto.GetRangeResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.getRangeResponse, nil
+	}
+	return c.server.GetRange(ctx, req)
 }
