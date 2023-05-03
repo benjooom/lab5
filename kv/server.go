@@ -110,6 +110,28 @@ func (s SortedSet) GetValue() interface{} {
 	return s.value
 }
 
+// types for MultiSet
+type KeySet struct {
+	mu   sync.RWMutex
+	keys []string
+}
+
+/*
+type KeyShardMap struct {
+	mu    sync.RWMutex
+	ksmap map[string]int
+}*/
+
+type ShardDataMap struct {
+	mu    sync.RWMutex
+	skmap map[int][]KeyValuePair
+}
+
+type KeyValuePair struct {
+	Key   string
+	Value string
+}
+
 func makeKvServerState(size int) KvServerState {
 
 	// Initialize all stripes
@@ -456,6 +478,123 @@ func (server *KvServerImpl) Set(
 	}
 	return &proto.SetResponse{}, nil
 
+}
+
+func (server *KvServerImpl) MultiSet(
+	ctx context.Context,
+	request *proto.MultiSetRequest,
+) (*proto.MultiSetResponse, error) {
+	logrus.WithFields(
+		logrus.Fields{"node": server.nodeName, "key": request.Key},
+	).Trace("node received MultiSet() request")
+
+	// error-checking (doesn't handle duplicates)
+	if len(request.Key) == 0 {
+		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
+	}
+	if len(request.Key) != len(request.Value) {
+		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "Keys and values must be the same length")
+	}
+	if request.TtlMs <= 0 {
+		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
+	}
+	failedKeys := KeySet{}
+	shardDataMap := ShardDataMap{}
+	//keyShardMap := KeyShardMap{}
+
+	//possibleKeys := KeySet{}
+	expiryTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	// instantaneous locking and unlocking to ensure finish updates?
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	var wg sync.WaitGroup
+
+	// first get shards of all the keys asynchronously
+	for i := 0; i < len(request.Key); i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			key := request.Key[i]
+			value := request.Value[i]
+			shard := GetShardForKey(key, server.shardMap.NumShards())
+
+			// If the shard is not in the nodes' covered shards, key has "failed"
+			server.mySL.RLock()
+			if !slices.Contains(server.myShards, shard) {
+				server.mySL.RUnlock()
+
+				// Update list of failed keys appropriately
+				failedKeys.mu.Lock()
+				failedKeys.keys = append(failedKeys.keys, key) // don't set error?
+				failedKeys.mu.Unlock()
+			} else {
+				server.mySL.RUnlock()
+
+				// add to map
+				shardDataMap.mu.Lock()
+				if _, ok := shardDataMap.skmap[shard]; !ok {
+					shardDataMap.skmap[shard] = make([]KeyValuePair, 0)
+					shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
+				} else {
+					shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
+				}
+				shardDataMap.mu.Unlock()
+				/*
+					keyShardMap.mu.Lock()
+					keyShardMap.ksmap[key] = shard
+					keyShardMap.mu.Unlock()
+
+					possibleKeys.mu.Lock()
+					possibleKeys.keys = append(possibleKeys.keys, key)
+					possibleKeys.mu.Unlock()*/
+			}
+
+		}()
+	}
+	wg.Wait()
+
+	/*// now sort all shard-key pairs by shard
+	keyShardMap.mu.Lock()
+	sort.SliceStable(possibleKeys.keys, func(i, j int) bool {
+		return keyShardMap.ksmap[possibleKeys.keys[i]] < keyShardMap.ksmap[possibleKeys.keys[j]]
+	})
+	keyShardMap.mu.Unlock()*/
+
+	// get list of unique shards
+	/*
+		shards := []int{}
+		for _, shard := range keyShardMap.ksmap {
+			if !slices.Contains(shards, shard) {
+				shards = append(shards, shard)
+			}
+		}
+	*/
+
+	for shard, data := range shardDataMap.skmap {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < len(data); i++ {
+				ok := server.GetStringDB().Set(data[i].Key, data[i].Value, expiryTime, shard)
+				if !ok {
+					failedKeys.mu.Lock()
+					failedKeys.keys = append(failedKeys.keys, data[i].Key) // don't set error?
+					failedKeys.mu.Unlock()
+				}
+			}
+		}()
+
+		wg.Wait()
+
+	}
+
+	// return
+	return &proto.MultiSetResponse{FailedKeys: failedKeys.keys}, nil
+
+	// TODO
+	return nil, nil
 }
 
 func (server *KvServerImpl) Delete(
