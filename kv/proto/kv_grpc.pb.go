@@ -26,11 +26,12 @@ type KvClient interface {
 	Set(ctx context.Context, in *SetRequest, opts ...grpc.CallOption) (*SetResponse, error)
 	Delete(ctx context.Context, in *DeleteRequest, opts ...grpc.CallOption) (*DeleteResponse, error)
 	CreateList(ctx context.Context, in *CreateListRequest, opts ...grpc.CallOption) (*CreateListResponse, error)
-	CreateSet(ctx context.Context, in *CreateSetResponse, opts ...grpc.CallOption) (*CreateSetResponse, error)
-	CreateSortedSet(ctx context.Context, in *CreateSortedSetResponse, opts ...grpc.CallOption) (*CreateSortedSetResponse, error)
+	CreateSet(ctx context.Context, in *CreateSetRequest, opts ...grpc.CallOption) (*CreateSetResponse, error)
+	CreateSortedSet(ctx context.Context, in *CreateSortedSetRequest, opts ...grpc.CallOption) (*CreateSortedSetResponse, error)
 	AppendList(ctx context.Context, in *AppendListRequest, opts ...grpc.CallOption) (*AppendListResponse, error)
 	AppendSet(ctx context.Context, in *AppendSetRequest, opts ...grpc.CallOption) (*AppendSetResponse, error)
-	AppendSort(ctx context.Context, in *AppendSortRequest, opts ...grpc.CallOption) (*AppendSortResponse, error)
+	AppendSortedSet(ctx context.Context, in *AppendSortedSetRequest, opts ...grpc.CallOption) (*AppendSortedSetResponse, error)
+	MultiSet(ctx context.Context, in *MultiSetRequest, opts ...grpc.CallOption) (*MultiSetResponse, error)
 	CAS(ctx context.Context, in *CASRequest, opts ...grpc.CallOption) (*CASResponse, error)
 	GetRange(ctx context.Context, in *GetRangeRequest, opts ...grpc.CallOption) (*GetRangeResponse, error)
 	GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (*GetShardContentsResponse, error)
@@ -80,7 +81,7 @@ func (c *kvClient) CreateList(ctx context.Context, in *CreateListRequest, opts .
 	return out, nil
 }
 
-func (c *kvClient) CreateSet(ctx context.Context, in *CreateSetResponse, opts ...grpc.CallOption) (*CreateSetResponse, error) {
+func (c *kvClient) CreateSet(ctx context.Context, in *CreateSetRequest, opts ...grpc.CallOption) (*CreateSetResponse, error) {
 	out := new(CreateSetResponse)
 	err := c.cc.Invoke(ctx, "/kv.Kv/CreateSet", in, out, opts...)
 	if err != nil {
@@ -89,7 +90,7 @@ func (c *kvClient) CreateSet(ctx context.Context, in *CreateSetResponse, opts ..
 	return out, nil
 }
 
-func (c *kvClient) CreateSortedSet(ctx context.Context, in *CreateSortedSetResponse, opts ...grpc.CallOption) (*CreateSortedSetResponse, error) {
+func (c *kvClient) CreateSortedSet(ctx context.Context, in *CreateSortedSetRequest, opts ...grpc.CallOption) (*CreateSortedSetResponse, error) {
 	out := new(CreateSortedSetResponse)
 	err := c.cc.Invoke(ctx, "/kv.Kv/CreateSortedSet", in, out, opts...)
 	if err != nil {
@@ -116,9 +117,18 @@ func (c *kvClient) AppendSet(ctx context.Context, in *AppendSetRequest, opts ...
 	return out, nil
 }
 
-func (c *kvClient) AppendSort(ctx context.Context, in *AppendSortRequest, opts ...grpc.CallOption) (*AppendSortResponse, error) {
-	out := new(AppendSortResponse)
-	err := c.cc.Invoke(ctx, "/kv.Kv/AppendSort", in, out, opts...)
+func (c *kvClient) AppendSortedSet(ctx context.Context, in *AppendSortedSetRequest, opts ...grpc.CallOption) (*AppendSortedSetResponse, error) {
+	out := new(AppendSortedSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/AppendSortedSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) MultiSet(ctx context.Context, in *MultiSetRequest, opts ...grpc.CallOption) (*MultiSetResponse, error) {
+	out := new(MultiSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/MultiSet", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -160,11 +170,12 @@ type KvServer interface {
 	Set(context.Context, *SetRequest) (*SetResponse, error)
 	Delete(context.Context, *DeleteRequest) (*DeleteResponse, error)
 	CreateList(context.Context, *CreateListRequest) (*CreateListResponse, error)
-	CreateSet(context.Context, *CreateSetResponse) (*CreateSetResponse, error)
-	CreateSortedSet(context.Context, *CreateSortedSetResponse) (*CreateSortedSetResponse, error)
+	CreateSet(context.Context, *CreateSetRequest) (*CreateSetResponse, error)
+	CreateSortedSet(context.Context, *CreateSortedSetRequest) (*CreateSortedSetResponse, error)
 	AppendList(context.Context, *AppendListRequest) (*AppendListResponse, error)
 	AppendSet(context.Context, *AppendSetRequest) (*AppendSetResponse, error)
-	AppendSort(context.Context, *AppendSortRequest) (*AppendSortResponse, error)
+	AppendSortedSet(context.Context, *AppendSortedSetRequest) (*AppendSortedSetResponse, error)
+	MultiSet(context.Context, *MultiSetRequest) (*MultiSetResponse, error)
 	CAS(context.Context, *CASRequest) (*CASResponse, error)
 	GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error)
 	GetShardContents(context.Context, *GetShardContentsRequest) (*GetShardContentsResponse, error)
@@ -187,10 +198,10 @@ func (UnimplementedKvServer) Delete(context.Context, *DeleteRequest) (*DeleteRes
 func (UnimplementedKvServer) CreateList(context.Context, *CreateListRequest) (*CreateListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateList not implemented")
 }
-func (UnimplementedKvServer) CreateSet(context.Context, *CreateSetResponse) (*CreateSetResponse, error) {
+func (UnimplementedKvServer) CreateSet(context.Context, *CreateSetRequest) (*CreateSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSet not implemented")
 }
-func (UnimplementedKvServer) CreateSortedSet(context.Context, *CreateSortedSetResponse) (*CreateSortedSetResponse, error) {
+func (UnimplementedKvServer) CreateSortedSet(context.Context, *CreateSortedSetRequest) (*CreateSortedSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSortedSet not implemented")
 }
 func (UnimplementedKvServer) AppendList(context.Context, *AppendListRequest) (*AppendListResponse, error) {
@@ -199,8 +210,11 @@ func (UnimplementedKvServer) AppendList(context.Context, *AppendListRequest) (*A
 func (UnimplementedKvServer) AppendSet(context.Context, *AppendSetRequest) (*AppendSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendSet not implemented")
 }
-func (UnimplementedKvServer) AppendSort(context.Context, *AppendSortRequest) (*AppendSortResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method AppendSort not implemented")
+func (UnimplementedKvServer) AppendSortedSet(context.Context, *AppendSortedSetRequest) (*AppendSortedSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method AppendSortedSet not implemented")
+}
+func (UnimplementedKvServer) MultiSet(context.Context, *MultiSetRequest) (*MultiSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MultiSet not implemented")
 }
 func (UnimplementedKvServer) CAS(context.Context, *CASRequest) (*CASResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CAS not implemented")
@@ -297,7 +311,7 @@ func _Kv_CreateList_Handler(srv interface{}, ctx context.Context, dec func(inter
 }
 
 func _Kv_CreateSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSetResponse)
+	in := new(CreateSetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -309,13 +323,13 @@ func _Kv_CreateSet_Handler(srv interface{}, ctx context.Context, dec func(interf
 		FullMethod: "/kv.Kv/CreateSet",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KvServer).CreateSet(ctx, req.(*CreateSetResponse))
+		return srv.(KvServer).CreateSet(ctx, req.(*CreateSetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
 func _Kv_CreateSortedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSortedSetResponse)
+	in := new(CreateSortedSetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
@@ -327,7 +341,7 @@ func _Kv_CreateSortedSet_Handler(srv interface{}, ctx context.Context, dec func(
 		FullMethod: "/kv.Kv/CreateSortedSet",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KvServer).CreateSortedSet(ctx, req.(*CreateSortedSetResponse))
+		return srv.(KvServer).CreateSortedSet(ctx, req.(*CreateSortedSetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -368,20 +382,38 @@ func _Kv_AppendSet_Handler(srv interface{}, ctx context.Context, dec func(interf
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Kv_AppendSort_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(AppendSortRequest)
+func _Kv_AppendSortedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AppendSortedSetRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(KvServer).AppendSort(ctx, in)
+		return srv.(KvServer).AppendSortedSet(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/kv.Kv/AppendSort",
+		FullMethod: "/kv.Kv/AppendSortedSet",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KvServer).AppendSort(ctx, req.(*AppendSortRequest))
+		return srv.(KvServer).AppendSortedSet(ctx, req.(*AppendSortedSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_MultiSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MultiSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).MultiSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/MultiSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).MultiSet(ctx, req.(*MultiSetRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -480,8 +512,12 @@ var Kv_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Kv_AppendSet_Handler,
 		},
 		{
-			MethodName: "AppendSort",
-			Handler:    _Kv_AppendSort_Handler,
+			MethodName: "AppendSortedSet",
+			Handler:    _Kv_AppendSortedSet_Handler,
+		},
+		{
+			MethodName: "MultiSet",
+			Handler:    _Kv_MultiSet_Handler,
 		},
 		{
 			MethodName: "CAS",
