@@ -16,6 +16,14 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// mapping of datatype to database slice
+var typeMap = map[string]int{
+	"STRING":    0,
+	"LIST":      1,
+	"SET":       2,
+	"SORTEDSET": 3,
+}
+
 type KvServerImpl struct {
 	proto.UnimplementedKvServer
 	nodeName string
@@ -25,7 +33,7 @@ type KvServerImpl struct {
 	clientPool ClientPool
 	shutdown   chan struct{}
 
-	database KvServerState
+	database []KvServerState
 
 	mySL     sync.RWMutex
 	rpcMutex sync.RWMutex
@@ -44,10 +52,62 @@ type Stripe struct {
 	state map[string]Entry
 }
 
-// Basic value object (value and ttl)
-type Entry struct {
+// // Basic value object (value and ttl)
+type Entry interface {
+	GetExpiry() time.Time
+	GetValue() interface{}
+}
+
+type String struct {
 	value string
 	ttl   time.Time
+}
+
+func (s String) GetExpiry() time.Time {
+	return s.ttl
+}
+
+func (s String) GetValue() interface{} {
+	return s.value
+}
+
+type List struct {
+	value []string
+	ttl   time.Time
+}
+
+func (s List) GetExpiry() time.Time {
+	return s.ttl
+}
+
+func (s List) GetValue() interface{} {
+	return s.value
+}
+
+type Set struct {
+	value map[string]bool
+	ttl   time.Time
+}
+
+func (s Set) GetExpiry() time.Time {
+	return s.ttl
+}
+
+func (s Set) GetValue() interface{} {
+	return s.value
+}
+
+type SortedSet struct {
+	value []string
+	ttl   time.Time
+}
+
+func (s SortedSet) GetExpiry() time.Time {
+	return s.ttl
+}
+
+func (s SortedSet) GetValue() interface{} {
+	return s.value
 }
 
 func makeKvServerState(size int) KvServerState {
@@ -76,7 +136,7 @@ func makeKvServerState(size int) KvServerState {
 				stripe.mutex.RLock()
 				for key, entry := range stripe.state {
 					// Check if entry.ttl is before now
-					if entry.ttl.Before(time.Now()) {
+					if entry.GetExpiry().Before(time.Now()) {
 						expiredKeys = append(expiredKeys, key)
 					}
 				}
@@ -92,7 +152,7 @@ func makeKvServerState(size int) KvServerState {
 				for _, key := range expiredKeys {
 					// Confirm that the key is still expired
 					// (it may have been updated while we were waiting for the lock)
-					if stripe.state[key].ttl.Before(time.Now()) {
+					if stripe.state[key].GetExpiry().Before(time.Now()) {
 						delete(stripe.state, key)
 					}
 				}
@@ -113,7 +173,7 @@ func (database *KvServerState) Set(key string, value string, expireyTime time.Ti
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 	// Set expirey time as a time object
-	stripe.state[key] = Entry{value, expireyTime}
+	stripe.state[key] = String{value, expireyTime}
 	return true
 }
 
@@ -134,12 +194,12 @@ func (database *KvServerState) Get(key string, shard int) (string, bool) {
 	}
 
 	// Expired data
-	if entry.ttl.Before(time.Now()) {
+	if entry.GetExpiry().Before(time.Now()) {
 		return "", false
 	}
 
 	// Key present, not expired
-	return entry.value, true
+	return entry.GetValue().(string), true
 }
 
 // Deletes a key from the database.
@@ -210,7 +270,7 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 				continue
 			}
 
-			stripe := server.database.stripes[shard]
+			stripe := server.GetStringDB().stripes[shard]
 			stripe.mutex.Lock()
 
 			// Wipe out the previous data in the stripe
@@ -218,7 +278,7 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 
 			// Add all the new data to the stripe
 			for i := range response.Values {
-				stripe.state[response.Values[i].Key] = Entry{response.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(response.Values[i].TtlMsRemaining))}
+				stripe.state[response.Values[i].Key] = String{response.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(response.Values[i].TtlMsRemaining))}
 			}
 			stripe.mutex.Unlock()
 
@@ -258,7 +318,7 @@ func (server *KvServerImpl) handleShardMapUpdate() {
 	server.mySL.Unlock()
 	// Empty out all stripes/shards that are no longer assigned to this node
 	for _, shard := range toRemove {
-		stripe := server.database.stripes[shard]
+		stripe := server.GetStringDB().stripes[shard]
 		stripe.mutex.Lock()
 		stripe.state = make(map[string]Entry)
 		stripe.mutex.Unlock()
@@ -281,12 +341,17 @@ func (server *KvServerImpl) shardMapListenLoop() {
 		select {
 		case <-server.shutdown:
 			// Will stop async ttl management go routines
-			atomic.AddInt32(&server.database.killed, 1)
+			// TODO: Updated the killed for all kvstates "STRING", "LIST", "SET", "SORTEDSET"
+			atomic.AddInt32(&server.GetStringDB().killed, 1)
 			return
 		case <-listener:
 			server.handleShardMapUpdate()
 		}
 	}
+}
+
+func (server *KvServerImpl) GetStringDB() *KvServerState {
+	return &server.database[typeMap["STRING"]]
 }
 
 func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *KvServerImpl {
@@ -295,13 +360,17 @@ func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *K
 	// Number of stripes in the database. You may change this value.
 	stripeCount := shardMap.NumShards()
 
+	// TODO: implement creation for all other data types: LIST, SET, SORTEDSET
+	database := make([]KvServerState, len(typeMap))
+	database[typeMap["STRING"]] = makeKvServerState(stripeCount)
+
 	server := KvServerImpl{
 		nodeName:   nodeName,
 		shardMap:   shardMap,
 		listener:   &listener,
 		clientPool: clientPool,
 		shutdown:   make(chan struct{}),
-		database:   makeKvServerState(stripeCount),
+		database:   database,
 		myShards:   make([]int, 0),
 		mySL:       sync.RWMutex{},
 		rpcMutex:   sync.RWMutex{},
@@ -345,7 +414,7 @@ func (server *KvServerImpl) Get(
 	}
 	server.mySL.RUnlock()
 
-	entry, ok := server.database.Get(request.Key, shard)
+	entry, ok := server.GetStringDB().Get(request.Key, shard)
 	if !ok {
 		return &proto.GetResponse{Value: "", WasFound: false}, nil
 	}
@@ -381,7 +450,7 @@ func (server *KvServerImpl) Set(
 	}
 	server.mySL.RUnlock()
 
-	ok := server.database.Set(request.Key, request.Value, expireyTime, shard)
+	ok := server.GetStringDB().Set(request.Key, request.Value, expireyTime, shard)
 	if !ok {
 		return &proto.SetResponse{}, errors.New("InternalError Failed to set key")
 	}
@@ -418,7 +487,7 @@ func (server *KvServerImpl) Delete(
 	}
 	server.mySL.RUnlock()
 
-	ok := server.database.Delete(request.Key, shard)
+	ok := server.GetStringDB().Delete(request.Key, shard)
 	if !ok {
 		// Should never happen
 		return &proto.DeleteResponse{}, nil
@@ -441,14 +510,14 @@ func (server *KvServerImpl) GetShardContents(
 	// Initialize necessary variables
 	values := make([]*proto.GetShardValue, 0)
 
-	stripe := server.database.stripes[int(request.Shard)]
+	stripe := server.GetStringDB().stripes[int(request.Shard)]
 	stripe.mutex.Lock()
 	for key := range stripe.state {
 		// If the key is expired, don't copy it
 		newValue := &proto.GetShardValue{
 			Key:            key,
-			Value:          stripe.state[key].value,
-			TtlMsRemaining: time.Until(stripe.state[key].ttl).Milliseconds(),
+			Value:          stripe.state[key].GetValue().(string),
+			TtlMsRemaining: time.Until(stripe.state[key].GetExpiry()).Milliseconds(),
 		}
 		values = append(values, newValue)
 	}
