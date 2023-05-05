@@ -14,8 +14,15 @@ Date  Started  Spent Work completed
 04/30 3:30pm   1:30  Met with team and discussed further how to divide work. Shared info about protobuf
 
 05/02 8:00pm   3:30  Figured out how to use interfaces in golang. Fixed testing script. Implemented basic collection classes
+
+05/04 10:00am  2:00  Started implementing the APIs for the new data types
+
+05/04 3:00pm   4:00  Continued implementing more APIs for new data types. Added Remove & Check rpc functions. Imported SortedSet.
+
+05/04 10:00pm  1:00  Fixed testing suite, researched similar key value stores for writing the report
+
                ----
-               11:30  TOTAL time spent
+               17:30  TOTAL time spent
 
 I did not discuss this assignment with anyone besides the Teaching Staff (Xiao).
 
