@@ -31,6 +31,13 @@ type KvClient interface {
 	AppendList(ctx context.Context, in *AppendListRequest, opts ...grpc.CallOption) (*AppendListResponse, error)
 	AppendSet(ctx context.Context, in *AppendSetRequest, opts ...grpc.CallOption) (*AppendSetResponse, error)
 	AppendSortedSet(ctx context.Context, in *AppendSortedSetRequest, opts ...grpc.CallOption) (*AppendSortedSetResponse, error)
+	PopList(ctx context.Context, in *PopListRequest, opts ...grpc.CallOption) (*PopListResponse, error)
+	RemoveList(ctx context.Context, in *RemoveListRequest, opts ...grpc.CallOption) (*RemoveListResponse, error)
+	RemoveSet(ctx context.Context, in *RemoveSetRequest, opts ...grpc.CallOption) (*RemoveSetResponse, error)
+	RemoveSortedSet(ctx context.Context, in *RemoveSortedSetRequest, opts ...grpc.CallOption) (*RemoveSortedSetResponse, error)
+	CheckList(ctx context.Context, in *CheckListRequest, opts ...grpc.CallOption) (*CheckListResponse, error)
+	CheckSet(ctx context.Context, in *CheckSetRequest, opts ...grpc.CallOption) (*CheckSetResponse, error)
+	CheckSortedSet(ctx context.Context, in *CheckSortedSetRequest, opts ...grpc.CallOption) (*CheckSortedSetResponse, error)
 	MultiSet(ctx context.Context, in *MultiSetRequest, opts ...grpc.CallOption) (*MultiSetResponse, error)
 	CAS(ctx context.Context, in *CASRequest, opts ...grpc.CallOption) (*CASResponse, error)
 	GetRange(ctx context.Context, in *GetRangeRequest, opts ...grpc.CallOption) (*GetRangeResponse, error)
@@ -126,6 +133,69 @@ func (c *kvClient) AppendSortedSet(ctx context.Context, in *AppendSortedSetReque
 	return out, nil
 }
 
+func (c *kvClient) PopList(ctx context.Context, in *PopListRequest, opts ...grpc.CallOption) (*PopListResponse, error) {
+	out := new(PopListResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/PopList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) RemoveList(ctx context.Context, in *RemoveListRequest, opts ...grpc.CallOption) (*RemoveListResponse, error) {
+	out := new(RemoveListResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/RemoveList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) RemoveSet(ctx context.Context, in *RemoveSetRequest, opts ...grpc.CallOption) (*RemoveSetResponse, error) {
+	out := new(RemoveSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/RemoveSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) RemoveSortedSet(ctx context.Context, in *RemoveSortedSetRequest, opts ...grpc.CallOption) (*RemoveSortedSetResponse, error) {
+	out := new(RemoveSortedSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/RemoveSortedSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) CheckList(ctx context.Context, in *CheckListRequest, opts ...grpc.CallOption) (*CheckListResponse, error) {
+	out := new(CheckListResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/CheckList", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) CheckSet(ctx context.Context, in *CheckSetRequest, opts ...grpc.CallOption) (*CheckSetResponse, error) {
+	out := new(CheckSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/CheckSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *kvClient) CheckSortedSet(ctx context.Context, in *CheckSortedSetRequest, opts ...grpc.CallOption) (*CheckSortedSetResponse, error) {
+	out := new(CheckSortedSetResponse)
+	err := c.cc.Invoke(ctx, "/kv.Kv/CheckSortedSet", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *kvClient) MultiSet(ctx context.Context, in *MultiSetRequest, opts ...grpc.CallOption) (*MultiSetResponse, error) {
 	out := new(MultiSetResponse)
 	err := c.cc.Invoke(ctx, "/kv.Kv/MultiSet", in, out, opts...)
@@ -175,6 +245,13 @@ type KvServer interface {
 	AppendList(context.Context, *AppendListRequest) (*AppendListResponse, error)
 	AppendSet(context.Context, *AppendSetRequest) (*AppendSetResponse, error)
 	AppendSortedSet(context.Context, *AppendSortedSetRequest) (*AppendSortedSetResponse, error)
+	PopList(context.Context, *PopListRequest) (*PopListResponse, error)
+	RemoveList(context.Context, *RemoveListRequest) (*RemoveListResponse, error)
+	RemoveSet(context.Context, *RemoveSetRequest) (*RemoveSetResponse, error)
+	RemoveSortedSet(context.Context, *RemoveSortedSetRequest) (*RemoveSortedSetResponse, error)
+	CheckList(context.Context, *CheckListRequest) (*CheckListResponse, error)
+	CheckSet(context.Context, *CheckSetRequest) (*CheckSetResponse, error)
+	CheckSortedSet(context.Context, *CheckSortedSetRequest) (*CheckSortedSetResponse, error)
 	MultiSet(context.Context, *MultiSetRequest) (*MultiSetResponse, error)
 	CAS(context.Context, *CASRequest) (*CASResponse, error)
 	GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error)
@@ -212,6 +289,27 @@ func (UnimplementedKvServer) AppendSet(context.Context, *AppendSetRequest) (*App
 }
 func (UnimplementedKvServer) AppendSortedSet(context.Context, *AppendSortedSetRequest) (*AppendSortedSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method AppendSortedSet not implemented")
+}
+func (UnimplementedKvServer) PopList(context.Context, *PopListRequest) (*PopListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PopList not implemented")
+}
+func (UnimplementedKvServer) RemoveList(context.Context, *RemoveListRequest) (*RemoveListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveList not implemented")
+}
+func (UnimplementedKvServer) RemoveSet(context.Context, *RemoveSetRequest) (*RemoveSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveSet not implemented")
+}
+func (UnimplementedKvServer) RemoveSortedSet(context.Context, *RemoveSortedSetRequest) (*RemoveSortedSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method RemoveSortedSet not implemented")
+}
+func (UnimplementedKvServer) CheckList(context.Context, *CheckListRequest) (*CheckListResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckList not implemented")
+}
+func (UnimplementedKvServer) CheckSet(context.Context, *CheckSetRequest) (*CheckSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckSet not implemented")
+}
+func (UnimplementedKvServer) CheckSortedSet(context.Context, *CheckSortedSetRequest) (*CheckSortedSetResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CheckSortedSet not implemented")
 }
 func (UnimplementedKvServer) MultiSet(context.Context, *MultiSetRequest) (*MultiSetResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MultiSet not implemented")
@@ -400,6 +498,132 @@ func _Kv_AppendSortedSet_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Kv_PopList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PopListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).PopList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/PopList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).PopList(ctx, req.(*PopListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_RemoveList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).RemoveList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/RemoveList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).RemoveList(ctx, req.(*RemoveListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_RemoveSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).RemoveSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/RemoveSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).RemoveSet(ctx, req.(*RemoveSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_RemoveSortedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RemoveSortedSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).RemoveSortedSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/RemoveSortedSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).RemoveSortedSet(ctx, req.(*RemoveSortedSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_CheckList_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckListRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).CheckList(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/CheckList",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).CheckList(ctx, req.(*CheckListRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_CheckSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).CheckSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/CheckSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).CheckSet(ctx, req.(*CheckSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _Kv_CheckSortedSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CheckSortedSetRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KvServer).CheckSortedSet(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/kv.Kv/CheckSortedSet",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KvServer).CheckSortedSet(ctx, req.(*CheckSortedSetRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _Kv_MultiSet_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(MultiSetRequest)
 	if err := dec(in); err != nil {
@@ -514,6 +738,34 @@ var Kv_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "AppendSortedSet",
 			Handler:    _Kv_AppendSortedSet_Handler,
+		},
+		{
+			MethodName: "PopList",
+			Handler:    _Kv_PopList_Handler,
+		},
+		{
+			MethodName: "RemoveList",
+			Handler:    _Kv_RemoveList_Handler,
+		},
+		{
+			MethodName: "RemoveSet",
+			Handler:    _Kv_RemoveSet_Handler,
+		},
+		{
+			MethodName: "RemoveSortedSet",
+			Handler:    _Kv_RemoveSortedSet_Handler,
+		},
+		{
+			MethodName: "CheckList",
+			Handler:    _Kv_CheckList_Handler,
+		},
+		{
+			MethodName: "CheckSet",
+			Handler:    _Kv_CheckSet_Handler,
+		},
+		{
+			MethodName: "CheckSortedSet",
+			Handler:    _Kv_CheckSortedSet_Handler,
 		},
 		{
 			MethodName: "MultiSet",

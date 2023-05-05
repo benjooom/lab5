@@ -101,6 +101,57 @@ message CASResponse {
 	bool was_set = 1;
 }
 
+message RemoveListRequest {
+	string key = 1;
+	string value = 2;
+}
+message RemoveSetRequest {
+	string key = 1;
+	string value = 2;
+}
+message RemoveSortedSetRequest {
+	string key = 1;
+	string value = 2;
+}
+message PopListRequest {
+	string key = 1;
+}
+message RemoveListResponse {
+	bool status = 1;
+}
+message RemoveSetResponse {
+	bool status = 1;
+}
+message RemoveSortedSetResponse {
+	bool status = 1;
+}
+message PopListResponse {
+	bool status = 1;
+	string value = 2;
+}
+
+message CheckListRequest {
+	string key = 1;
+	string value = 2;
+}
+message CheckSetRequest {
+	string key = 1;
+	string value = 2;
+}
+message CheckSortedSetRequest {
+	string key = 1;
+	string value = 2;
+}
+message CheckListResponse {
+	bool status = 1;
+}
+message CheckSetResponse {
+	bool status = 1;
+}
+message CheckSortedSetResponse {
+	bool status = 1;
+}
+
 service Kv {
 	rpc Get(GetRequest) returns (GetResponse);
 	rpc Set(SetRequest) returns (SetResponse);
@@ -113,6 +164,15 @@ service Kv {
 	rpc AppendList(AppendListRequest) returns (AppendListResponse);
 	rpc AppendSet(AppendSetRequest) returns (AppendSetResponse);
 	rpc AppendSortedSet(AppendSortedSetRequest) returns (AppendSortedSetResponse);
+
+	rpc PopList(PopListRequest) returns (PopListResponse);
+	rpc RemoveList(RemoveListRequest) returns (RemoveListResponse);
+	rpc RemoveSet(RemoveSetRequest) returns (RemoveSetResponse);
+	rpc RemoveSortedSet(RemoveSortedSetRequest) returns (RemoveSortedSetResponse);
+
+	rpc CheckList(CheckListRequest) returns (CheckListResponse);
+	rpc CheckSet(CheckSetRequest) returns (CheckSetResponse);
+	rpc CheckSortedSet(CheckSortedSetRequest) returns (CheckSortedSetResponse);
 
 	rpc MultiSet(MultiSetRequest) returns (MultiSetResponse);
 	rpc CAS(CASRequest) returns (CASResponse);
