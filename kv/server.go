@@ -528,7 +528,7 @@ func (server *KvServerImpl) MultiSet(
 	// first get shards of all the keys asynchronously
 	for i := 0; i < len(request.Key); i++ {
 		wg.Add(1)
-		go func() {
+		go func(i int) {
 			defer wg.Done()
 			key := request.Key[i]
 			value := request.Value[i]
@@ -565,7 +565,7 @@ func (server *KvServerImpl) MultiSet(
 					possibleKeys.mu.Unlock()*/
 			}
 
-		}()
+		}(i)
 	}
 	wg.Wait()
 
@@ -607,8 +607,6 @@ func (server *KvServerImpl) MultiSet(
 	// return
 	return &proto.MultiSetResponse{FailedKeys: failedKeys.keys}, nil
 
-	// TODO
-	return nil, nil
 }
 
 func (server *KvServerImpl) Delete(

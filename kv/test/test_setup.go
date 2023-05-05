@@ -117,15 +117,15 @@ func (ts *TestSetup) NumShards() int {
 	return ts.shardMap.NumShards()
 }
 
-func nodesExcept(nodes []string, nodeToRemove string) []string {
-	newNodes := make([]string, 0)
-	for _, node := range nodes {
-		if node != nodeToRemove {
-			newNodes = append(newNodes, node)
-		}
-	}
-	return newNodes
-}
+// func nodesExcept(nodes []string, nodeToRemove string) []string {
+// 	newNodes := make([]string, 0)
+// 	for _, node := range nodes {
+// 		if node != nodeToRemove {
+// 			newNodes = append(newNodes, node)
+// 		}
+// 	}
+// 	return newNodes
+// }
 
 /*
  * ======== REPLICA ADJUSTMENT AND SHARD MOVEMENT WORKFLOWS ========
