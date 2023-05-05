@@ -200,6 +200,23 @@ func (database *KvServerState) Set(key string, value string, expireyTime time.Ti
 	return true
 }
 
+// NEW LAB 5 FUNCTION: MULTISET
+func (database *KvServerState) MultiSet(key []string, value []string, expiryTime time.Time, shard int) bool {
+	// This function will only ever be called by MultiSet, which will ensure the following invariants:
+	// Invariant 1: all strings will belong to the same shard, providing per-shard atomicity
+	// Invariant 2: all keys will be unique, providing per-key atomicity
+
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	// Set expiry time as a time object
+	for i := 0; i < len(key); i++ {
+		stripe.state[key[i]] = String{value[i], expiryTime}
+	}
+
+	return true
+}
+
 // Gets a key from the database.
 // Returns the value and true if the key was present, false otherwise.
 func (database *KvServerState) Get(key string, shard int) (string, bool) {
@@ -494,6 +511,8 @@ func (server *KvServerImpl) Set(
 
 }
 
+// LAB 5 NEW FUNCTION: MULTISET
+
 func (server *KvServerImpl) MultiSet(
 	ctx context.Context,
 	request *proto.MultiSetRequest,
@@ -514,9 +533,7 @@ func (server *KvServerImpl) MultiSet(
 	}
 	failedKeys := KeySet{}
 	shardDataMap := ShardDataMap{}
-	//keyShardMap := KeyShardMap{}
 
-	//possibleKeys := KeySet{}
 	expiryTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
 
 	// instantaneous locking and unlocking to ensure finish updates?
@@ -555,49 +572,34 @@ func (server *KvServerImpl) MultiSet(
 					shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
 				}
 				shardDataMap.mu.Unlock()
-				/*
-					keyShardMap.mu.Lock()
-					keyShardMap.ksmap[key] = shard
-					keyShardMap.mu.Unlock()
 
-					possibleKeys.mu.Lock()
-					possibleKeys.keys = append(possibleKeys.keys, key)
-					possibleKeys.mu.Unlock()*/
 			}
 
 		}(i)
 	}
 	wg.Wait()
 
-	/*// now sort all shard-key pairs by shard
-	keyShardMap.mu.Lock()
-	sort.SliceStable(possibleKeys.keys, func(i, j int) bool {
-		return keyShardMap.ksmap[possibleKeys.keys[i]] < keyShardMap.ksmap[possibleKeys.keys[j]]
-	})
-	keyShardMap.mu.Unlock()*/
-
-	// get list of unique shards
-	/*
-		shards := []int{}
-		for _, shard := range keyShardMap.ksmap {
-			if !slices.Contains(shards, shard) {
-				shards = append(shards, shard)
-			}
-		}
-	*/
-
 	for shard, data := range shardDataMap.skmap {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
+			// Add keys and values to the list
+			shard_keys := make([]string, 0)
+			shard_values := make([]string, 0)
+
 			for i := 0; i < len(data); i++ {
-				ok := server.GetStringDB().Set(data[i].Key, data[i].Value, expiryTime, shard)
-				if !ok {
-					failedKeys.mu.Lock()
-					failedKeys.keys = append(failedKeys.keys, data[i].Key) // don't set error?
-					failedKeys.mu.Unlock()
-				}
+				shard_keys = append(shard_keys, data[i].Key)
+				shard_values = append(shard_values, data[i].Value)
 			}
+
+			ok := server.GetStringDB().MultiSet(shard_keys, shard_values, expiryTime, shard)
+			if !ok {
+				failedKeys.mu.Lock()
+				failedKeys.keys = append(failedKeys.keys, shard_keys...) // don't set error?
+				failedKeys.mu.Unlock()
+			}
+
 		}()
 
 		wg.Wait()

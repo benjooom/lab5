@@ -3,10 +3,11 @@ ESTIMATE of time to complete assignment: 30 hours
       Time     Time
 Date  Started  Spent Work completed
 ----  -------  ----  --------------
-04/22  2:00pm  0:30  Short group meeting to discuss project plan
+04/22  2:00pm  1:30  Short group meeting to discuss project plan
 05/01  3:30pm  1:00  Running commands for protobuf, met with group to discuss protobuf
 05/03 12:00pm  0:30  Started writing MultiSet function
-05/03  4:00pm  1:00  Finished writing rough MultiSet function (still uses Set, not custom Set)
+05/03  4:00pm  1:30  Finished writing rough MultiSet function (still uses Set, not custom Set)
+05/05  2:20pm  0:30
                ----
               09:15  TOTAL time spent
 
