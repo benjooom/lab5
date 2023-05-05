@@ -12,6 +12,7 @@ import (
 
 	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/sirupsen/logrus"
+	"github.com/wangjia184/sortedset"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -98,7 +99,7 @@ func (s Set) GetValue() interface{} {
 }
 
 type SortedSet struct {
-	value []string
+	value sortedset.SortedSet
 	ttl   time.Time
 }
 
@@ -376,15 +377,29 @@ func (server *KvServerImpl) GetStringDB() *KvServerState {
 	return &server.database[typeMap["STRING"]]
 }
 
+func (server *KvServerImpl) GetListDB() *KvServerState {
+	return &server.database[typeMap["LIST"]]
+}
+
+func (server *KvServerImpl) GetSetDB() *KvServerState {
+	return &server.database[typeMap["SET"]]
+}
+
+func (server *KvServerImpl) GetSortedSetDB() *KvServerState {
+	return &server.database[typeMap["SORTEDSET"]]
+}
+
 func MakeKvServer(nodeName string, shardMap *ShardMap, clientPool ClientPool) *KvServerImpl {
 	listener := shardMap.MakeListener()
 
 	// Number of stripes in the database. You may change this value.
 	stripeCount := shardMap.NumShards()
 
-	// TODO: implement creation for all other data types: LIST, SET, SORTEDSET
+	// Create a database for each datatype
 	database := make([]KvServerState, len(typeMap))
-	database[typeMap["STRING"]] = makeKvServerState(stripeCount)
+	for _, v := range typeMap {
+		database[v] = makeKvServerState(stripeCount)
+	}
 
 	server := KvServerImpl{
 		nodeName:   nodeName,
@@ -452,7 +467,6 @@ func (server *KvServerImpl) Set(
 		logrus.Fields{"node": server.nodeName, "key": request.Key},
 	).Trace("node received Set() request")
 
-	// SPEC NOTE: "Empty keys are not allowed (error with INVALID_ARGUMENT)."
 	if request.Key == "" {
 		return &proto.SetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
@@ -667,9 +681,615 @@ func (server *KvServerImpl) GetShardContents(
 
 // LAB 5 NEW FUNCTIONS:
 
+func (server *KvServerImpl) CreateList(
+	ctx context.Context,
+	request *proto.CreateListRequest,
+) (*proto.CreateListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CreateListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CreateListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetListDB().CreateList(request.Key, expireyTime, shard)
+	if !ok {
+		return &proto.CreateListResponse{}, status.Error(codes.Internal, "InternalError Failed to create list")
+	}
+	return &proto.CreateListResponse{}, nil
+
+}
+
+func (database *KvServerState) CreateList(key string, expireyTime time.Time, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	// Set expirey time as a time object
+	stripe.state[key] = List{make([]string, 0), expireyTime}
+	return true
+}
+
+func (server *KvServerImpl) CreateSet(
+	ctx context.Context,
+	request *proto.CreateSetRequest,
+) (*proto.CreateSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CreateSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CreateSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetSetDB().CreateSet(request.Key, expireyTime, shard)
+	if !ok {
+		return &proto.CreateSetResponse{}, status.Error(codes.Internal, "InternalError Failed to create set")
+	}
+
+	return &proto.CreateSetResponse{}, nil
+}
+
+func (database *KvServerState) CreateSet(key string, expireyTime time.Time, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	// Set expirey time as a time object
+	stripe.state[key] = Set{make(map[string]bool), expireyTime}
+	return true
+}
+
+func (server *KvServerImpl) CreateSortedSet(
+	ctx context.Context,
+	request *proto.CreateSortedSetRequest,
+) (*proto.CreateSortedSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CreateSortedSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CreateSortedSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetSortedSetDB().CreateSortedSet(request.Key, expireyTime, shard)
+	if !ok {
+		return &proto.CreateSortedSetResponse{}, status.Error(codes.Internal, "InternalError Failed to create sorted set")
+	}
+
+	return &proto.CreateSortedSetResponse{}, nil
+}
+
+func (database *KvServerState) CreateSortedSet(key string, expireyTime time.Time, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	stripe.state[key] = SortedSet{*sortedset.New(), expireyTime}
+	return true
+}
+
 func (server *KvServerImpl) AppendList(
 	ctx context.Context,
 	request *proto.AppendListRequest,
 ) (*proto.AppendListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.AppendListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.AppendListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetListDB().AppendList(request.Key, request.Value, shard)
+	if !ok {
+		return &proto.AppendListResponse{}, status.Error(codes.Internal, "InternalError Failed to insert to list")
+	}
+
 	return &proto.AppendListResponse{}, nil
+}
+
+func (database *KvServerState) AppendList(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(List)
+	entry.value = append(entry.value, value)
+
+	return true
+}
+
+func (server *KvServerImpl) AppendSet(
+	ctx context.Context,
+	request *proto.AppendSetRequest,
+) (*proto.AppendSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.AppendSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.AppendSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetSetDB().AppendSet(request.Key, request.Value, shard)
+	if !ok {
+		return &proto.AppendSetResponse{}, status.Error(codes.Internal, "InternalError Failed to insert to list")
+	}
+
+	return &proto.AppendSetResponse{}, nil
+}
+
+func (database *KvServerState) AppendSet(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(Set)
+	entry.value[value] = true
+
+	return true
+}
+
+func (server *KvServerImpl) AppendSortedSet(
+	ctx context.Context,
+	request *proto.AppendSortedSetRequest,
+) (*proto.AppendSortedSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.AppendSortedSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.AppendSortedSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetSortedSetDB().AppendSortedSet(request.Key, request.Value, request.Rank, shard)
+	if !ok {
+		return &proto.AppendSortedSetResponse{}, status.Error(codes.Internal, "InternalError Failed to insert to sorted set")
+	}
+
+	return &proto.AppendSortedSetResponse{}, nil
+}
+
+func (database *KvServerState) AppendSortedSet(key string, value string, rank int64, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(SortedSet)
+	status := entry.value.AddOrUpdate(value, sortedset.SCORE(rank), interface{}(nil))
+
+	return status
+}
+
+func (server *KvServerImpl) RemoveList(
+	ctx context.Context,
+	request *proto.RemoveListRequest,
+) (*proto.RemoveListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.RemoveListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.RemoveListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetListDB().RemoveList(request.Key, request.Value, shard)
+
+	return &proto.RemoveListResponse{Status: found}, nil
+}
+
+func (database *KvServerState) RemoveList(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(List)
+	for i, v := range entry.value {
+		if v == value {
+			entry.value = append(entry.value[:i], entry.value[i+1:]...)
+			return true
+		}
+	}
+
+	return false
+}
+
+func (server *KvServerImpl) RemoveSet(
+	ctx context.Context,
+	request *proto.RemoveSetRequest,
+) (*proto.RemoveSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.RemoveSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.RemoveSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetSetDB().RemoveSet(request.Key, request.Value, shard)
+
+	return &proto.RemoveSetResponse{Status: found}, nil
+}
+
+func (database *KvServerState) RemoveSet(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(Set)
+	delete(entry.value, value)
+
+	return true
+}
+
+func (server *KvServerImpl) RemoveSortedSet(
+	ctx context.Context,
+	request *proto.RemoveSortedSetRequest,
+) (*proto.RemoveSortedSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.RemoveSortedSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.RemoveSortedSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetSortedSetDB().RemoveSortedSet(request.Key, request.Value, shard)
+
+	return &proto.RemoveSortedSetResponse{Status: found}, nil
+}
+
+func (database *KvServerState) RemoveSortedSet(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(SortedSet)
+	entry.value.Remove(value)
+
+	return true
+}
+
+func (server *KvServerImpl) CheckList(
+	ctx context.Context,
+	request *proto.CheckListRequest,
+) (*proto.CheckListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CheckListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CheckListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetListDB().CheckList(request.Key, request.Value, shard)
+
+	return &proto.CheckListResponse{Status: found}, nil
+}
+
+func (database *KvServerState) CheckList(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	// NOTE: change this when sorted list!
+	entry := stripe.state[key].(List)
+	for _, v := range entry.value {
+		if v == value {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (server *KvServerImpl) CheckSet(
+	ctx context.Context,
+	request *proto.CheckSetRequest,
+) (*proto.CheckSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CheckSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CheckSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetSetDB().CheckSet(request.Key, request.Value, shard)
+
+	return &proto.CheckSetResponse{Status: found}, nil
+}
+
+func (database *KvServerState) CheckSet(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(Set)
+	_, found := entry.value[value]
+
+	return found
+}
+
+func (server *KvServerImpl) CheckSortedSet(
+	ctx context.Context,
+	request *proto.CheckSortedSetRequest,
+) (*proto.CheckSortedSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CheckSortedSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CheckSortedSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	found := server.GetSortedSetDB().CheckSortedSet(request.Key, request.Value, shard)
+
+	return &proto.CheckSortedSetResponse{Status: found}, nil
+}
+
+func (database *KvServerState) CheckSortedSet(key string, value string, shard int) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	entry := stripe.state[key].(SortedSet)
+	node := entry.value.GetByKey(value)
+
+	return node != nil
+
+}
+
+func (server *KvServerImpl) PopList(
+	ctx context.Context,
+	request *proto.PopListRequest,
+) (*proto.PopListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.PopListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.PopListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	value, ok := server.GetListDB().PopList(request.Key, shard)
+
+	if !ok {
+		return &proto.PopListResponse{Status: ok}, status.Error(codes.Internal, "InternalError Failed to pop from list")
+	}
+
+	return &proto.PopListResponse{Status: ok, Value: value}, nil
+}
+
+func (database *KvServerState) PopList(key string, shard int) (string, bool) {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok || stripe.state[key].(List).value == nil {
+		return "", false
+	}
+
+	entry := stripe.state[key].(List)
+
+	if len(entry.value) == 0 {
+		return "", false
+	}
+
+	value := entry.value[0]
+	entry.value = entry.value[1:]
+
+	return value, true
+}
+
+func (server *KvServerImpl) GetRange(
+	ctx context.Context,
+	request *proto.GetRangeRequest,
+) (*proto.GetRangeResponse, error) {
+
+	if request.Key == "" {
+		return &proto.GetRangeResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	if request.Start > request.End {
+		return &proto.GetRangeResponse{}, status.Error(codes.InvalidArgument, "Start must be less than end")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.GetRangeResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	values, ok := server.GetSortedSetDB().GetRange(request.Key, request.Start, request.End, shard)
+
+	if !ok {
+		return &proto.GetRangeResponse{}, status.Error(codes.Internal, "InternalError Failed to get range")
+	}
+
+	return &proto.GetRangeResponse{Values: values}, nil
+}
+
+func (database *KvServerState) GetRange(key string, start int64, end int64, shard int) ([]string, bool) {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return nil, false
+	}
+
+	entry := stripe.state[key].(SortedSet)
+	nodes := entry.value.GetByRankRange(int(start), int(end), false)
+
+	values := make([]string, len(nodes))
+	for i, node := range nodes {
+		values[i] = node.Key()
+	}
+
+	return values, true
 }
