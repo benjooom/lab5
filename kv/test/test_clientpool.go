@@ -133,6 +133,15 @@ type TestClient struct {
 	appendSetResponse       *proto.AppendSetResponse
 	appendSortedSetResponse *proto.AppendSortedSetResponse
 
+	popListResponse         *proto.PopListResponse
+	removeListResponse      *proto.RemoveListResponse
+	removeSetResponse       *proto.RemoveSetResponse
+	removeSortedSetResponse *proto.RemoveSortedSetResponse
+
+	checkListResponse      *proto.CheckListResponse
+	checkSetResponse       *proto.CheckSetResponse
+	checkSortedSetResponse *proto.CheckSortedSetResponse
+
 	multiSetResponse *proto.MultiSetResponse
 	cASResponse      *proto.CASResponse
 	getRangeResponse *proto.GetRangeResponse
@@ -342,6 +351,118 @@ func (c *TestClient) AppendSortedSet(ctx context.Context, req *proto.AppendSorte
 		return c.appendSortedSetResponse, nil
 	}
 	return c.server.AppendSortedSet(ctx, req)
+}
+
+func (c *TestClient) PopList(ctx context.Context, req *proto.PopListRequest, opts ...grpc.CallOption) (*proto.PopListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.popListResponse, nil
+	}
+	return c.server.PopList(ctx, req)
+}
+
+func (c *TestClient) RemoveList(ctx context.Context, req *proto.RemoveListRequest, opts ...grpc.CallOption) (*proto.RemoveListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.removeListResponse, nil
+	}
+	return c.server.RemoveList(ctx, req)
+}
+
+func (c *TestClient) RemoveSet(ctx context.Context, req *proto.RemoveSetRequest, opts ...grpc.CallOption) (*proto.RemoveSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.removeSetResponse, nil
+	}
+	return c.server.RemoveSet(ctx, req)
+}
+
+func (c *TestClient) RemoveSortedSet(ctx context.Context, req *proto.RemoveSortedSetRequest, opts ...grpc.CallOption) (*proto.RemoveSortedSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.removeSortedSetResponse, nil
+	}
+	return c.server.RemoveSortedSet(ctx, req)
+}
+
+func (c *TestClient) CheckList(ctx context.Context, req *proto.CheckListRequest, opts ...grpc.CallOption) (*proto.CheckListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.checkListResponse, nil
+	}
+	return c.server.CheckList(ctx, req)
+}
+
+func (c *TestClient) CheckSet(ctx context.Context, req *proto.CheckSetRequest, opts ...grpc.CallOption) (*proto.CheckSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.checkSetResponse, nil
+	}
+	return c.server.CheckSet(ctx, req)
+}
+
+func (c *TestClient) CheckSortedSet(ctx context.Context, req *proto.CheckSortedSetRequest, opts ...grpc.CallOption) (*proto.CheckSortedSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+	if c.getShardContentsResponse != nil {
+		return c.checkSortedSetResponse, nil
+	}
+	return c.server.CheckSortedSet(ctx, req)
 }
 
 func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, opts ...grpc.CallOption) (*proto.MultiSetResponse, error) {
