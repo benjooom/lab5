@@ -235,10 +235,6 @@ func (database *KvServerState) CAS(key string, value string, expected string, ex
 		return true
 	}
 
-	// print the expected value
-	fmt.Println("Expected value: ", expected)
-	fmt.Println("Actual value: ", stripe.state[key].GetValue().(string))
-
 	return false
 }
 
