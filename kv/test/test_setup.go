@@ -76,6 +76,7 @@ func (ts *TestSetup) NodeGet(nodeName string, key string) (string, bool, error) 
 	}
 	return response.Value, response.WasFound, nil
 }
+
 func (ts *TestSetup) NodeSet(nodeName string, key string, value string, ttl time.Duration) error {
 	_, err := ts.nodes[nodeName].Set(
 		context.Background(),

@@ -151,7 +151,7 @@ func TestIntegrationExpire(t *testing.T) {
 	assert.False(t, wasFound)
 
 	setup.Shutdown()
- }
+}
 
 // Check that a key timeout is handled properly from the client-side
 func TestClientTimeout(t *testing.T) {
@@ -186,4 +186,32 @@ func TestClientTimeout(t *testing.T) {
 
 	setup.Shutdown()
 
+}
+
+// MultiSet Unit Test (same as TestBasic but replace Get with MultiSet)
+func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
+	// For a given setup (nodes and shard placement), runs
+	// very basic tests -- just get, set, and delete on one key.
+	_, wasFound, err := setup.NodeGet("n1", "abc")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+	err = setup.NodeMultiSet("n1", "abc", "123", 5*time.Second)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.NodeGet("n1", "abc")
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+	assert.Nil(t, err)
+	val, wasFound, err = setup.NodeGet("n1", "abc")
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+	assert.Nil(t, err)
+
+	err = setup.NodeDelete("n1", "abc")
+	assert.Nil(t, err)
+
+	_, wasFound, err = setup.NodeGet("n1", "abc")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
 }
