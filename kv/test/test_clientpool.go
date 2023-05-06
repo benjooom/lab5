@@ -194,7 +194,7 @@ func (c *TestClient) Delete(ctx context.Context, req *proto.DeleteRequest, opts 
 	}
 	return c.server.Delete(ctx, req)
 }
-func (c *TestClient) GetShardContents(ctx context.Context, req *proto.GetShardContentsRequest, opts ...grpc.CallOption) (*proto.GetShardContentsResponse, error) {
+func (c *TestClient) GetShardContents(ctx context.Context, req *proto.GetShardContentsRequest, opts ...grpc.CallOption) (proto.Kv_GetShardContentsClient, error) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	atomic.AddUint64(&c.requestsSent, 1)
@@ -205,9 +205,11 @@ func (c *TestClient) GetShardContents(ctx context.Context, req *proto.GetShardCo
 		time.Sleep(*c.latencyInjection)
 	}
 	if c.getShardContentsResponse != nil {
-		return c.getShardContentsResponse, nil
+		return nil, nil
 	}
-	return c.server.GetShardContents(ctx, req)
+	// TODO: and fix this (BEN)
+	// return c.server.GetShardContents(req,)
+	return nil, nil
 }
 
 func (c *TestClient) ClearOverrides() {

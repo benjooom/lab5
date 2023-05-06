@@ -41,7 +41,7 @@ type KvClient interface {
 	MultiSet(ctx context.Context, in *MultiSetRequest, opts ...grpc.CallOption) (*MultiSetResponse, error)
 	CAS(ctx context.Context, in *CASRequest, opts ...grpc.CallOption) (*CASResponse, error)
 	GetRange(ctx context.Context, in *GetRangeRequest, opts ...grpc.CallOption) (*GetRangeResponse, error)
-	GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (*GetShardContentsResponse, error)
+	GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (Kv_GetShardContentsClient, error)
 }
 
 type kvClient struct {
@@ -223,13 +223,36 @@ func (c *kvClient) GetRange(ctx context.Context, in *GetRangeRequest, opts ...gr
 	return out, nil
 }
 
-func (c *kvClient) GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (*GetShardContentsResponse, error) {
-	out := new(GetShardContentsResponse)
-	err := c.cc.Invoke(ctx, "/kv.Kv/GetShardContents", in, out, opts...)
+func (c *kvClient) GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (Kv_GetShardContentsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Kv_ServiceDesc.Streams[0], "/kv.Kv/GetShardContents", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &kvGetShardContentsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Kv_GetShardContentsClient interface {
+	Recv() (*GetShardContentsResponse, error)
+	grpc.ClientStream
+}
+
+type kvGetShardContentsClient struct {
+	grpc.ClientStream
+}
+
+func (x *kvGetShardContentsClient) Recv() (*GetShardContentsResponse, error) {
+	m := new(GetShardContentsResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // KvServer is the server API for Kv service.
@@ -255,7 +278,7 @@ type KvServer interface {
 	MultiSet(context.Context, *MultiSetRequest) (*MultiSetResponse, error)
 	CAS(context.Context, *CASRequest) (*CASResponse, error)
 	GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error)
-	GetShardContents(context.Context, *GetShardContentsRequest) (*GetShardContentsResponse, error)
+	GetShardContents(*GetShardContentsRequest, Kv_GetShardContentsServer) error
 	mustEmbedUnimplementedKvServer()
 }
 
@@ -320,8 +343,8 @@ func (UnimplementedKvServer) CAS(context.Context, *CASRequest) (*CASResponse, er
 func (UnimplementedKvServer) GetRange(context.Context, *GetRangeRequest) (*GetRangeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetRange not implemented")
 }
-func (UnimplementedKvServer) GetShardContents(context.Context, *GetShardContentsRequest) (*GetShardContentsResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetShardContents not implemented")
+func (UnimplementedKvServer) GetShardContents(*GetShardContentsRequest, Kv_GetShardContentsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetShardContents not implemented")
 }
 func (UnimplementedKvServer) mustEmbedUnimplementedKvServer() {}
 
@@ -678,22 +701,25 @@ func _Kv_GetRange_Handler(srv interface{}, ctx context.Context, dec func(interfa
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Kv_GetShardContents_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetShardContentsRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _Kv_GetShardContents_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetShardContentsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(KvServer).GetShardContents(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/kv.Kv/GetShardContents",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(KvServer).GetShardContents(ctx, req.(*GetShardContentsRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(KvServer).GetShardContents(m, &kvGetShardContentsServer{stream})
+}
+
+type Kv_GetShardContentsServer interface {
+	Send(*GetShardContentsResponse) error
+	grpc.ServerStream
+}
+
+type kvGetShardContentsServer struct {
+	grpc.ServerStream
+}
+
+func (x *kvGetShardContentsServer) Send(m *GetShardContentsResponse) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 // Kv_ServiceDesc is the grpc.ServiceDesc for Kv service.
@@ -779,11 +805,13 @@ var Kv_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetRange",
 			Handler:    _Kv_GetRange_Handler,
 		},
+	},
+	Streams: []grpc.StreamDesc{
 		{
-			MethodName: "GetShardContents",
-			Handler:    _Kv_GetShardContents_Handler,
+			StreamName:    "GetShardContents",
+			Handler:       _Kv_GetShardContents_Handler,
+			ServerStreams: true,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
 	Metadata: "kv/proto/kv.proto",
 }
