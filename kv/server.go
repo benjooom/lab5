@@ -218,6 +218,30 @@ func (database *KvServerState) MultiSet(key []string, value []string, expiryTime
 	return true
 }
 
+func (database *KvServerState) CAS(key string, value string, expected string, expiryTime time.Time, shard int) bool {
+
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	// check if key in database
+	if _, ok := stripe.state[key]; !ok {
+		return false
+	}
+
+	// check if value matches expected
+	if stripe.state[key].GetValue().(string) == expected {
+		stripe.state[key] = String{value, expiryTime}
+		return true
+	}
+
+	// print the expected value
+	fmt.Println("Expected value: ", expected)
+	fmt.Println("Actual value: ", stripe.state[key].GetValue().(string))
+
+	return false
+}
+
 // Gets a key from the database.
 // Returns the value and true if the key was present, false otherwise.
 func (database *KvServerState) Get(key string, shard int) (string, bool) {
@@ -512,7 +536,7 @@ func (server *KvServerImpl) Set(
 
 }
 
-// LAB 5 NEW FUNCTION: MULTISET
+// LAB 5 NEW FUNCTION: MULTISET & CAS
 
 func (server *KvServerImpl) MultiSet(
 	ctx context.Context,
@@ -612,6 +636,34 @@ func (server *KvServerImpl) MultiSet(
 
 }
 
+func (server *KvServerImpl) CAS(
+	ctx context.Context,
+	request *proto.CASRequest,
+) (*proto.CASResponse, error) {
+
+	if request.Key == "" {
+		return &proto.CASResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.CASResponse{WasSet: false}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetStringDB().CAS(request.Key, request.Value, request.Expected, expireyTime, shard)
+
+	return &proto.CASResponse{WasSet: ok}, nil
+
+}
+
 func (server *KvServerImpl) Delete(
 	ctx context.Context,
 	request *proto.DeleteRequest,
@@ -624,7 +676,6 @@ func (server *KvServerImpl) Delete(
 		return &proto.DeleteResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
 	}
 
-	// panic("TODO: Part A")
 	server.rpcMutex.Lock()
 	server.rpcMutex.Unlock()
 	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
