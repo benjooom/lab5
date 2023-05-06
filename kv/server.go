@@ -118,12 +118,6 @@ type KeySet struct {
 	keys []string
 }
 
-/*
-type KeyShardMap struct {
-	mu    sync.RWMutex
-	ksmap map[string]int
-}*/
-
 type ShardDataMap struct {
 	mu    sync.RWMutex
 	skmap map[int][]KeyValuePair
@@ -543,7 +537,7 @@ func (server *KvServerImpl) MultiSet(
 	request *proto.MultiSetRequest,
 ) (*proto.MultiSetResponse, error) {
 	logrus.WithFields(
-		logrus.Fields{"node": server.nodeName, "key": request.Key},
+		logrus.Fields{"node": server.nodeName, "key": request.Key, "value": request.Value, "ttl": request.TtlMs},
 	).Trace("node received MultiSet() request")
 
 	// error-checking (doesn't handle duplicates)
@@ -556,8 +550,8 @@ func (server *KvServerImpl) MultiSet(
 	if request.TtlMs <= 0 {
 		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
 	}
-	failedKeys := KeySet{}
-	shardDataMap := ShardDataMap{}
+	failedKeys := KeySet{keys: make([]string, 0)}
+	shardDataMap := ShardDataMap{skmap: make(map[int][]KeyValuePair)}
 
 	expiryTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
 
@@ -603,6 +597,10 @@ func (server *KvServerImpl) MultiSet(
 		}(i)
 	}
 	wg.Wait()
+
+	logrus.WithFields(logrus.Fields{
+		"shardDataMap": shardDataMap.skmap},
+	).Trace("resulting shard map")
 
 	for shard, data := range shardDataMap.skmap {
 		wg.Add(1)
