@@ -189,6 +189,10 @@ func TestClientTimeout(t *testing.T) {
 }
 
 // MultiSet Unit Test (same as TestBasic but replace Get with MultiSet)
+func TestServerBasicUnshardedMultiSet(t *testing.T) {
+	RunTestWith(t, RunBasicMultiSet, MakeTestSetup(MakeBasicOneShard()))
+}
+
 func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
 	// For a given setup (nodes and shard placement), runs
 	// very basic tests -- just get, set, and delete on one key.
@@ -196,7 +200,7 @@ func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
 	assert.Nil(t, err)
 	assert.False(t, wasFound)
 
-	err = setup.NodeMultiSet("n1", "abc", "123", 5*time.Second)
+	err = setup.NodeMultiSet("n1", []string{"abc", "def"}, []string{"123", "456"}, 5*time.Second)
 	assert.Nil(t, err)
 
 	val, wasFound, err := setup.NodeGet("n1", "abc")
@@ -214,4 +218,10 @@ func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
 	_, wasFound, err = setup.NodeGet("n1", "abc")
 	assert.Nil(t, err)
 	assert.False(t, wasFound)
+
+	// second value should still be accessible
+	val, wasFound, err = setup.NodeGet("n1", "def")
+	assert.True(t, wasFound)
+	assert.Equal(t, "456", val)
+	assert.Nil(t, err)
 }
