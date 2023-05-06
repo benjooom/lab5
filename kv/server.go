@@ -559,13 +559,13 @@ func (server *KvServerImpl) MultiSet(
 
 	// error-checking (doesn't handle duplicates)
 	if len(request.Key) == 0 {
-		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
 	}
 	if len(request.Key) != len(request.Value) {
-		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "Keys and values must be the same length")
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Keys and values must be the same length")
 	}
 	if request.TtlMs <= 0 {
-		return &proto.MultiSetResponse{}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
 	}
 	failedKeys := KeySet{keys: make([]string, 0)}
 	shardDataMap := ShardDataMap{skmap: make(map[int][]KeyValuePair)}

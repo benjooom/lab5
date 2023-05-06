@@ -80,7 +80,6 @@ func (kv *Kv) Get(ctx context.Context, key string) (string, bool, error) {
 	}
 	return "", false, err
 
-	//panic("TODO: Part B")
 }
 
 func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Duration) error {
@@ -110,10 +109,8 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 		kvClient, client_err := kv.clientPool.GetClient(node)
 
 		if client_err != nil {
-			//fmt.Println("client error: ", client_err)
 			err = client_err
 			continue
-			//return "", false, client_err
 		}
 
 		// concurrent requests to Set (better to make entire section of loop in goroutine?)
@@ -134,17 +131,115 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 
 	return err
 
-	//panic("TODO: Part B")
 }
 
 //NEW LAB5 FUNCTION: MULTISET
 
-func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl time.Duration) error {
+func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl time.Duration) (*proto.MultiSetResponse, error) {
 	logrus.WithFields(
 		logrus.Fields{"keys": keys},
 	).Trace("client sending MultiSet() request")
 	panic("TODO: Multiset")
 
+	// essential error-checking
+	if len(keys) == 0 {
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
+	}
+	if len(keys) != len(values) {
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Keys and values must be the same length")
+	}
+	if ttl <= 0 {
+		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
+	}
+
+	// calculate the appropriate shards and build map
+	failedKeys := KeySet{keys: make([]string, 0)}
+	shardDataMap := ShardDataMap{skmap: make(map[int][]KeyValuePair)}
+
+	expiryTime := ttl.Milliseconds()
+
+	var wg sync.WaitGroup
+
+	// first get shards of all the keys asynchronously
+	for i := 0; i < len(keys); i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			key := keys[i]
+			value := values[i]
+			shard := GetShardForKey(key, kv.shardMap.NumShards())
+
+			// add to map
+			shardDataMap.mu.Lock()
+			if _, ok := shardDataMap.skmap[shard]; !ok {
+				shardDataMap.skmap[shard] = make([]KeyValuePair, 0)
+				shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
+			} else {
+				shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
+			}
+			shardDataMap.mu.Unlock()
+
+		}(i)
+	}
+	wg.Wait()
+
+	logrus.WithFields(logrus.Fields{
+		"shardDataMap": shardDataMap.skmap},
+	).Trace("resulting shard map")
+	err := error(nil)
+
+	for shard, data := range shardDataMap.skmap {
+
+		// Use the provided ShardMap instance in Kv.shardMap to find the set of nodes which host the shard
+		nodes := kv.shardMap.NodesForShard(shard)
+
+		/* Q: error if no nodes found?
+		if len(nodes) == 0 {
+			return status.Error(codes.NotFound, "Node not available")
+		}*/
+
+		// start loop to check nodes, starting from the randomly generated index
+
+		var wg sync.WaitGroup
+
+		for i := 0; i < len(nodes); i++ {
+			// Use the provided ClientPool.GetClient to get a KvClient to use to send the request
+			// GetClient: returns a KvClient for a given node if one can be created
+			node := nodes[i]
+			kvClient, client_err := kv.clientPool.GetClient(node)
+
+			if client_err != nil {
+				err = client_err
+				continue
+			}
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// Add keys and values to the list
+				shard_keys := make([]string, 0)
+				shard_values := make([]string, 0)
+
+				for i := 0; i < len(data); i++ {
+					shard_keys = append(shard_keys, data[i].Key)
+					shard_values = append(shard_values, data[i].Value)
+				}
+
+				_, grpc_err := kvClient.MultiSet(ctx, &proto.MultiSetRequest{Key: shard_keys, Value: shard_values, TtlMs: expiryTime})
+				if grpc_err != nil {
+					failedKeys.mu.Lock()
+					failedKeys.keys = append(failedKeys.keys, shard_keys...) // don't set error?
+					failedKeys.mu.Unlock()
+				}
+
+			}()
+
+			wg.Wait()
+
+		}
+	}
+	return &proto.MultiSetResponse{FailedKeys: failedKeys.keys}, err
 }
 
 func (kv *Kv) Delete(ctx context.Context, key string) error {
