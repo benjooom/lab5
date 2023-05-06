@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"sync"
 	"sync/atomic"
@@ -840,6 +841,7 @@ func (database *KvServerState) AppendList(key string, value string, shard int) b
 
 	entry := stripe.state[key].(List)
 	entry.value = append(entry.value, value)
+	stripe.state[key] = entry
 
 	return true
 }
@@ -884,6 +886,7 @@ func (database *KvServerState) AppendSet(key string, value string, shard int) bo
 
 	entry := stripe.state[key].(Set)
 	entry.value[value] = true
+	stripe.state[key] = entry
 
 	return true
 }
@@ -928,6 +931,7 @@ func (database *KvServerState) AppendSortedSet(key string, value string, rank in
 
 	entry := stripe.state[key].(SortedSet)
 	status := entry.value.AddOrUpdate(value, sortedset.SCORE(rank), interface{}(nil))
+	stripe.state[key] = entry
 
 	return status
 }
@@ -971,6 +975,7 @@ func (database *KvServerState) RemoveList(key string, value string, shard int) b
 	for i, v := range entry.value {
 		if v == value {
 			entry.value = append(entry.value[:i], entry.value[i+1:]...)
+			stripe.state[key] = entry
 			return true
 		}
 	}
@@ -1015,6 +1020,7 @@ func (database *KvServerState) RemoveSet(key string, value string, shard int) bo
 
 	entry := stripe.state[key].(Set)
 	delete(entry.value, value)
+	stripe.state[key] = entry
 
 	return true
 }
@@ -1056,6 +1062,7 @@ func (database *KvServerState) RemoveSortedSet(key string, value string, shard i
 
 	entry := stripe.state[key].(SortedSet)
 	entry.value.Remove(value)
+	stripe.state[key] = entry
 
 	return true
 }
@@ -1097,6 +1104,10 @@ func (database *KvServerState) CheckList(key string, value string, shard int) bo
 
 	// NOTE: change this when sorted list!
 	entry := stripe.state[key].(List)
+
+	// print out the list
+	fmt.Println(entry.value)
+
 	for _, v := range entry.value {
 		if v == value {
 			return true
@@ -1236,6 +1247,7 @@ func (database *KvServerState) PopList(key string, shard int) (string, bool) {
 
 	value := entry.value[0]
 	entry.value = entry.value[1:]
+	stripe.state[key] = entry
 
 	return value, true
 }
