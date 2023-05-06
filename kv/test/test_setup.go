@@ -87,7 +87,88 @@ func (ts *TestSetup) NodeDelete(nodeName string, key string) error {
 	_, err := ts.nodes[nodeName].Delete(context.Background(), &proto.DeleteRequest{Key: key})
 	return err
 }
-
+func (ts *TestSetup) NodeCreateList(nodeName string, key string, ttl time.Duration) error {
+	_, err := ts.nodes[nodeName].CreateList(context.Background(), &proto.CreateListRequest{Key: key, TtlMs: ttl.Milliseconds()})
+	return err
+}
+func (ts *TestSetup) NodeAppendList(nodeName string, key string, value string) error {
+	_, err := ts.nodes[nodeName].AppendList(context.Background(), &proto.AppendListRequest{Key: key, Value: value})
+	return err
+}
+func (ts *TestSetup) NodeCheckList(nodeName string, key string, value string) (bool, error) {
+	response, err := ts.nodes[nodeName].CheckList(context.Background(), &proto.CheckListRequest{Key: key, Value: value})
+	if err != nil {
+		return false, err
+	}
+	return response.Status, nil
+}
+func (ts *TestSetup) NodeRemoveList(nodeName string, key string, value string) error {
+	_, err := ts.nodes[nodeName].RemoveList(context.Background(), &proto.RemoveListRequest{Key: key, Value: value})
+	return err
+}
+func (ts *TestSetup) NodeCreateSet(nodeName string, key string, ttl time.Duration) error {
+	_, err := ts.nodes[nodeName].CreateSet(context.Background(), &proto.CreateSetRequest{Key: key, TtlMs: ttl.Milliseconds()})
+	return err
+}
+func (ts *TestSetup) NodeAppendSet(nodename string, key string, value string) error {
+	_, err := ts.nodes[nodename].AppendSet(context.Background(), &proto.AppendSetRequest{Key: key, Value: value})
+	return err
+}
+func (ts *TestSetup) NodeCheckSet(nodeName string, key string, value string) (bool, error) {
+	response, err := ts.nodes[nodeName].CheckSet(context.Background(), &proto.CheckSetRequest{Key: key, Value: value})
+	if err != nil {
+		return false, err
+	}
+	return response.Status, nil
+}
+func (ts *TestSetup) NodeRemoveSet(nodeName string, key string, value string) error {
+	_, err := ts.nodes[nodeName].RemoveSet(context.Background(), &proto.RemoveSetRequest{Key: key, Value: value})
+	return err
+}
+func (ts *TestSetup) NodeCreateSortedSet(nodeName string, key string, ttl time.Duration) error {
+	_, err := ts.nodes[nodeName].CreateSortedSet(context.Background(), &proto.CreateSortedSetRequest{Key: key, TtlMs: ttl.Milliseconds()})
+	return err
+}
+func (ts *TestSetup) NodeAppendSortedSet(nodeName string, key string, value string, rank int64) error {
+	_, err := ts.nodes[nodeName].AppendSortedSet(context.Background(), &proto.AppendSortedSetRequest{Key: key, Value: value, Rank: rank})
+	return err
+}
+func (ts *TestSetup) NodeCheckSortedSet(nodeName string, key string, value string) (bool, error) {
+	response, err := ts.nodes[nodeName].CheckSortedSet(context.Background(), &proto.CheckSortedSetRequest{Key: key, Value: value})
+	if err != nil {
+		return false, err
+	}
+	return response.Status, nil
+}
+func (ts *TestSetup) NodeRemoveSortedSet(nodeName string, key string, value string) error {
+	_, err := ts.nodes[nodeName].RemoveSortedSet(context.Background(), &proto.RemoveSortedSetRequest{Key: key, Value: value})
+	return err
+}
+func (ts *TestSetup) NodePopList(nodeName string, key string) (string, bool, error) {
+	response, err := ts.nodes[nodeName].PopList(context.Background(), &proto.PopListRequest{Key: key})
+	if err != nil {
+		return "", false, err
+	}
+	return response.Value, response.Status, nil
+}
+func (ts *TestSetup) NodeCAS(nodeName string, key string, value string, expected string, ttl time.Duration) (bool, error) {
+	response, err := ts.nodes[nodeName].CAS(context.Background(), &proto.CASRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds(), Expected: expected})
+	if err != nil {
+		return false, err
+	}
+	return response.WasSet, nil
+}
+func (ts *TestSetup) NodeMultiSet(nodeName string, key []string, value []string, ttl time.Duration) error {
+	_, err := ts.nodes[nodeName].MultiSet(context.Background(), &proto.MultiSetRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds()})
+	return err
+}
+func (ts *TestSetup) NodeGetRange(nodeName string, key string, start int64, end int64) ([]string, error) {
+	response, err := ts.nodes[nodeName].GetRange(context.Background(), &proto.GetRangeRequest{Key: key, Start: start, End: end})
+	if err != nil {
+		return nil, err
+	}
+	return response.Values, nil
+}
 func (ts *TestSetup) Get(key string) (string, bool, error) {
 	return ts.kv.Get(ts.ctx, key)
 }
@@ -97,6 +178,57 @@ func (ts *TestSetup) Set(key string, value string, ttl time.Duration) error {
 func (ts *TestSetup) Delete(key string) error {
 	return ts.kv.Delete(ts.ctx, key)
 }
+
+/*
+func (ts *TestSetup) CreateList(key string) error {
+	return ts.kv.CreateList(ts.ctx, key)
+}
+func (ts *TestSetup) AppendList(key string, value string) error {
+	return ts.kv.AppendList(ts.ctx, key, value)
+}
+func (ts *TestSetup) CheckList(key string, value string) (bool, error) {
+	return ts.kv.CheckList(ts.ctx, key, value)
+}
+func (ts *TestSetup) RemoveList(key string, value string) error {
+	return ts.kv.RemoveList(ts.ctx, key, value)
+}
+func (ts *TestSetup) CreateSet(key string) error {
+	return ts.kv.CreateSet(ts.ctx, key)
+}
+func (ts *TestSetup) AppendSet(key string, value string) error {
+	return ts.kv.AppendSet(ts.ctx, key, value)
+}
+func (ts *TestSetup) CheckSet(key string, value string) (bool, error) {
+	return ts.kv.CheckSet(ts.ctx, key, value)
+}
+func (ts *TestSetup) RemoveSet(key string, value string) error {
+	return ts.kv.RemoveSet(ts.ctx, key, value)
+}
+func (ts *TestSetup) CreateSortedSet(key string) error {
+	return ts.kv.CreateSortedSet(ts.ctx, key)
+}
+func (ts *TestSetup) AppendSortedSet(key string, value string, rank int64) error {
+	return ts.kv.AppendSortedSet(ts.ctx, key, value, rank)
+}
+func (ts *TestSetup) CheckSortedSet(key string, value string) (bool, error) {
+	return ts.kv.CheckSortedSet(ts.ctx, key, value)
+}
+func (ts *TestSetup) RemoveSortedSet(key string, value string) error {
+	return ts.kv.RemoveSortedSet(ts.ctx, key, value)
+}
+func (ts *TestSetup) PopList(key string) (string, bool, error) {
+	return ts.kv.PopList(ts.ctx, key)
+}
+func (ts *TestSetup) CAS(key string, value string, ttl time.Duration, version int64) (bool, error) {
+	return ts.kv.CAS(ts.ctx, key, value, ttl, version)
+}
+func (ts *TestSetup) MultiSet(key []string, value []string, ttl time.Duration) error {
+	return ts.kv.MultiSet(ts.ctx, key, value, ttl)
+}
+func (ts *TestSetup) GetRange(key string, start int64, end int64) ([]string, error) {
+	return ts.kv.GetRange(ts.ctx, key, start, end)
+}
+*/
 
 func (ts *TestSetup) UpdateShardMapping(shardsToNodes map[int][]string) {
 	state := kv.ShardMapState{
