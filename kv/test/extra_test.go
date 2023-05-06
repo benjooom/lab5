@@ -189,11 +189,35 @@ func TestClientTimeout(t *testing.T) {
 }
 
 // MultiSet Unit Test (same as TestBasic but replace Get with MultiSet)
-func TestServerBasicUnshardedMultiSet(t *testing.T) {
-	RunTestWith(t, RunBasicMultiSet, MakeTestSetup(MakeBasicOneShard()))
+func TestMultiSetServerBasicUnsharded(t *testing.T) {
+	RunTestWith(t, RunMultiSetBasic, MakeTestSetup(MakeBasicOneShard()))
 }
 
-func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
+func TestServerMultiSetMultiShardSingleNode(t *testing.T) {
+	// Runs the basic test on a single node setup,
+	// but with multiple shards assigned. This shouldn't
+	// be functionally much different from a single node
+	// with a single shard, but may stress cases if you store
+	// data for different shards in separate storage.
+	setup := MakeTestSetup(MakeMultiShardSingleNode())
+	t.Run("basic", func(t *testing.T) {
+		RunMultiSetBasic(t, setup)
+	})
+}
+
+func TestServerMultiSetBigMultiShardSingleNode(t *testing.T) {
+	// Runs the basic test on a single node setup,
+	// but with multiple shards assigned. This shouldn't
+	// be functionally much different from a single node
+	// with a single shard, but may stress cases if you store
+	// data for different shards in separate storage.
+	setup := MakeTestSetup(MakeMultiShardSingleNode())
+	t.Run("basic", func(t *testing.T) {
+		RunMultiSetBasicBig(t, setup)
+	})
+}
+
+func RunMultiSetBasic(t *testing.T, setup *TestSetup) {
 	// For a given setup (nodes and shard placement), runs
 	// very basic tests -- just get, set, and delete on one key.
 	_, wasFound, err := setup.NodeGet("n1", "abc")
@@ -224,4 +248,84 @@ func RunBasicMultiSet(t *testing.T, setup *TestSetup) {
 	assert.True(t, wasFound)
 	assert.Equal(t, "456", val)
 	assert.Nil(t, err)
+}
+
+// helper for two shards on one node
+func RunMultiSetBasicBig(t *testing.T, setup *TestSetup) {
+	// For a given setup (nodes and shard placement), runs
+	// very basic tests -- just get, set, and delete on one key.
+	_, wasFound, err := setup.NodeGet("n1", "abc")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+	err = setup.NodeMultiSet("n1", []string{"abc", "def", "ghi", "jkl", "mno", "pqr", "stu", "vwx", "yz"}, []string{"123", "456", "789", "101", "102", "103", "104", "105", "106"}, 5*time.Second)
+	assert.Nil(t, err)
+
+	err = setup.NodeMultiSet("n1", []string{"gabe", "alice", "ben"}, []string{"dos santos", "ao", "mehmedovic"}, 5*time.Second)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.NodeGet("n1", "abc")
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+	assert.Nil(t, err)
+	val, wasFound, err = setup.NodeGet("n1", "abc")
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+	assert.Nil(t, err)
+
+	err = setup.NodeDelete("n1", "abc")
+	assert.Nil(t, err)
+
+	_, wasFound, err = setup.NodeGet("n1", "abc")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+
+	// second value should still be accessible
+	val, wasFound, err = setup.NodeGet("n1", "def")
+	assert.True(t, wasFound)
+	assert.Equal(t, "456", val)
+	assert.Nil(t, err)
+
+	// third value also accessible
+	val, wasFound, err = setup.NodeGet("n1", "ghi")
+	assert.True(t, wasFound)
+	assert.Equal(t, "789", val)
+	assert.Nil(t, err)
+}
+
+// helper for two shards both on one node
+func TestServerMultiSetRestartShardCopy(t *testing.T) {
+	// Tests that your server copies data at startup as well, not just
+	// shard movements after it is running.
+	//
+	// We have two nodes with a single shard, and we shutdown and restart n2
+	// and it should copy data from n1.
+	setup := MakeTestSetup(MakeTwoNodeBothAssignedSingleShard())
+
+	err := setup.NodeMultiSet("n1", []string{"abc", "def", "eieio"}, []string{"123", "456", "moo"}, 100*time.Second)
+	assert.Nil(t, err)
+	err = setup.NodeMultiSet("n2", []string{"abc", "def", "eieio"}, []string{"123", "456", "moo"}, 100*time.Second)
+	assert.Nil(t, err)
+
+	// Value should exist on n1 and n2
+	val, wasFound, err := setup.NodeGet("n1", "abc")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+
+	val, wasFound, err = setup.NodeGet("n2", "abc")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+
+	setup.nodes["n2"].Shutdown()
+	setup.nodes["n2"] = kv.MakeKvServer("n2", setup.shardMap, &setup.clientPool)
+
+	// n2 should copy the data from n1 on restart
+	val, wasFound, err = setup.NodeGet("n2", "abc")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+
+	setup.Shutdown()
 }

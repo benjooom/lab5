@@ -176,6 +176,7 @@ func (ts *TestSetup) Get(key string) (string, bool, error) {
 func (ts *TestSetup) Set(key string, value string, ttl time.Duration) error {
 	return ts.kv.Set(ts.ctx, key, value, ttl)
 }
+
 func (ts *TestSetup) Delete(key string) error {
 	return ts.kv.Delete(ts.ctx, key)
 }
