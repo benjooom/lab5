@@ -152,7 +152,7 @@ func (ts *TestSetup) NodePopList(nodeName string, key string) (string, bool, err
 	return response.Value, response.Status, nil
 }
 func (ts *TestSetup) NodeCAS(nodeName string, key string, value string, expected string, ttl time.Duration) (bool, error) {
-	response, err := ts.nodes[nodeName].CAS(context.Background(), &proto.CASRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds(), Expected: expected})
+	response, err := ts.nodes[nodeName].CAS(context.Background(), &proto.CASRequest{Key: key, Value: value, Expected: expected, TtlMs: ttl.Milliseconds()})
 	if err != nil {
 		return false, err
 	}
@@ -178,10 +178,8 @@ func (ts *TestSetup) Set(key string, value string, ttl time.Duration) error {
 func (ts *TestSetup) Delete(key string) error {
 	return ts.kv.Delete(ts.ctx, key)
 }
-
-/*
-func (ts *TestSetup) CreateList(key string) error {
-	return ts.kv.CreateList(ts.ctx, key)
+func (ts *TestSetup) CreateList(key string, ttl time.Duration) error {
+	return ts.kv.CreateList(ts.ctx, key, ttl)
 }
 func (ts *TestSetup) AppendList(key string, value string) error {
 	return ts.kv.AppendList(ts.ctx, key, value)
@@ -189,11 +187,11 @@ func (ts *TestSetup) AppendList(key string, value string) error {
 func (ts *TestSetup) CheckList(key string, value string) (bool, error) {
 	return ts.kv.CheckList(ts.ctx, key, value)
 }
-func (ts *TestSetup) RemoveList(key string, value string) error {
+func (ts *TestSetup) RemoveList(key string, value string) (bool, error) {
 	return ts.kv.RemoveList(ts.ctx, key, value)
 }
-func (ts *TestSetup) CreateSet(key string) error {
-	return ts.kv.CreateSet(ts.ctx, key)
+func (ts *TestSetup) CreateSet(key string, ttl time.Duration) error {
+	return ts.kv.CreateSet(ts.ctx, key, ttl)
 }
 func (ts *TestSetup) AppendSet(key string, value string) error {
 	return ts.kv.AppendSet(ts.ctx, key, value)
@@ -201,11 +199,11 @@ func (ts *TestSetup) AppendSet(key string, value string) error {
 func (ts *TestSetup) CheckSet(key string, value string) (bool, error) {
 	return ts.kv.CheckSet(ts.ctx, key, value)
 }
-func (ts *TestSetup) RemoveSet(key string, value string) error {
+func (ts *TestSetup) RemoveSet(key string, value string) (bool, error) {
 	return ts.kv.RemoveSet(ts.ctx, key, value)
 }
-func (ts *TestSetup) CreateSortedSet(key string) error {
-	return ts.kv.CreateSortedSet(ts.ctx, key)
+func (ts *TestSetup) CreateSortedSet(key string, ttl time.Duration) error {
+	return ts.kv.CreateSortedSet(ts.ctx, key, ttl)
 }
 func (ts *TestSetup) AppendSortedSet(key string, value string, rank int64) error {
 	return ts.kv.AppendSortedSet(ts.ctx, key, value, rank)
@@ -213,22 +211,23 @@ func (ts *TestSetup) AppendSortedSet(key string, value string, rank int64) error
 func (ts *TestSetup) CheckSortedSet(key string, value string) (bool, error) {
 	return ts.kv.CheckSortedSet(ts.ctx, key, value)
 }
-func (ts *TestSetup) RemoveSortedSet(key string, value string) error {
+func (ts *TestSetup) RemoveSortedSet(key string, value string) (bool, error) {
 	return ts.kv.RemoveSortedSet(ts.ctx, key, value)
 }
-func (ts *TestSetup) PopList(key string) (string, bool, error) {
+func (ts *TestSetup) PopList(key string) (string, error) {
 	return ts.kv.PopList(ts.ctx, key)
 }
-func (ts *TestSetup) CAS(key string, value string, ttl time.Duration, version int64) (bool, error) {
-	return ts.kv.CAS(ts.ctx, key, value, ttl, version)
+func (ts *TestSetup) CAS(key string, value string, expected string, ttl time.Duration) (bool, error) {
+	return ts.kv.CAS(ts.ctx, key, value, expected, ttl)
 }
-func (ts *TestSetup) MultiSet(key []string, value []string, ttl time.Duration) error {
-	return ts.kv.MultiSet(ts.ctx, key, value, ttl)
-}
+
+//	func (ts *TestSetup) MultiSet(key []string, value []string, ttl time.Duration) error {
+//		return ts.kv.MultiSet(ts.ctx, key, value, ttl)
+//	}
+
 func (ts *TestSetup) GetRange(key string, start int64, end int64) ([]string, error) {
 	return ts.kv.GetRange(ts.ctx, key, start, end)
 }
-*/
 
 func (ts *TestSetup) UpdateShardMapping(shardsToNodes map[int][]string) {
 	state := kv.ShardMapState{
