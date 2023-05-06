@@ -188,5 +188,541 @@ func (kv *Kv) Delete(ctx context.Context, key string) error {
 
 	return err
 
-	//panic("TODO: Part B")
+}
+
+func (kv *Kv) CreateList(ctx context.Context, key string, ttl time.Duration) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.CreateList(ctx, &proto.CreateListRequest{Key: key, TtlMs: ttl.Milliseconds()})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) CreateSet(ctx context.Context, key string, ttl time.Duration) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.CreateSet(ctx, &proto.CreateSetRequest{Key: key, TtlMs: ttl.Milliseconds()})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) CreateSortedSet(ctx context.Context, key string, ttl time.Duration) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.CreateSortedSet(ctx, &proto.CreateSortedSetRequest{Key: key, TtlMs: ttl.Milliseconds()})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) AppendList(ctx context.Context, key string, value string) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.AppendList(ctx, &proto.AppendListRequest{Key: key, Value: value})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) AppendSet(ctx context.Context, key string, value string) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.AppendSet(ctx, &proto.AppendSetRequest{Key: key, Value: value})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) AppendSortedSet(ctx context.Context, key string, value string, rank int64) error {
+
+	nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	err := error(nil)
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			mu.Lock()
+			err = client_err
+			mu.Unlock()
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, grpc_err := kvClient.AppendSortedSet(ctx, &proto.AppendSortedSetRequest{Key: key, Value: value, Rank: rank})
+			if grpc_err != nil {
+				mu.Lock()
+				err = grpc_err
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	return err
+}
+
+func (kv *Kv) PopList(ctx context.Context, key string) (string, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return "", status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.PopList(ctx, &proto.PopListRequest{Key: key})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Value, nil
+	}
+	return "", err
+}
+
+func (kv *Kv) RemoveList(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.RemoveList(ctx, &proto.RemoveListRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+
+}
+
+func (kv *Kv) RemoveSet(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.RemoveSet(ctx, &proto.RemoveSetRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+}
+
+func (kv *Kv) RemoveSortedSet(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.RemoveSortedSet(ctx, &proto.RemoveSortedSetRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+}
+
+func (kv *Kv) CheckList(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.CheckList(ctx, &proto.CheckListRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+
+}
+
+func (kv *Kv) CheckSet(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.CheckSet(ctx, &proto.CheckSetRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+
+}
+
+func (kv *Kv) CheckSortedSet(ctx context.Context, key string, value string) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.CheckSortedSet(ctx, &proto.CheckSortedSetRequest{Key: key, Value: value})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Status, nil
+	}
+	return false, err
+
+}
+
+func (kv *Kv) CAS(ctx context.Context, key string, value string, expected string, ttl time.Duration) (bool, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return false, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.CAS(ctx, &proto.CASRequest{Key: key, Value: value, Expected: expected, TtlMs: ttl.Milliseconds()})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.WasSet, nil
+	}
+	return false, err
+
+}
+
+func (kv *Kv) GetRange(ctx context.Context, key string, start int64, end int64) ([]string, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return nil, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.GetRange(ctx, &proto.GetRangeRequest{Key: key, Start: start, End: end})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Values, nil
+	}
+	return nil, err
+
 }
