@@ -137,6 +137,16 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 	//panic("TODO: Part B")
 }
 
+//NEW LAB5 FUNCTION: MULTISET
+
+func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl time.Duration) error {
+	logrus.WithFields(
+		logrus.Fields{"keys": keys},
+	).Trace("client sending MultiSet() request")
+	panic("TODO: Multiset")
+
+}
+
 func (kv *Kv) Delete(ctx context.Context, key string) error {
 	logrus.WithFields(
 		logrus.Fields{"key": key},
