@@ -287,7 +287,7 @@ func (c *TestClient) AppendList(ctx context.Context, req *proto.AppendListReques
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.appendListResponse != nil {
 		return c.appendListResponse, nil
 	}
 	return c.server.AppendList(ctx, req)
@@ -303,7 +303,7 @@ func (c *TestClient) CreateList(ctx context.Context, req *proto.CreateListReques
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.createListResponse != nil {
 		return c.createListResponse, nil
 	}
 	return c.server.CreateList(ctx, req)
@@ -319,7 +319,7 @@ func (c *TestClient) CreateSet(ctx context.Context, req *proto.CreateSetRequest,
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.createSetResponse != nil {
 		return c.createSetResponse, nil
 	}
 	return c.server.CreateSet(ctx, req)
@@ -335,7 +335,7 @@ func (c *TestClient) CreateSortedSet(ctx context.Context, req *proto.CreateSorte
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.createSortedSetResponse != nil {
 		return c.createSortedSetResponse, nil
 	}
 	return c.server.CreateSortedSet(ctx, req)
@@ -351,7 +351,7 @@ func (c *TestClient) AppendSet(ctx context.Context, req *proto.AppendSetRequest,
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.appendSetResponse != nil {
 		return c.appendSetResponse, nil
 	}
 	return c.server.AppendSet(ctx, req)
@@ -367,7 +367,7 @@ func (c *TestClient) AppendSortedSet(ctx context.Context, req *proto.AppendSorte
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.appendSortedSetResponse != nil {
 		return c.appendSortedSetResponse, nil
 	}
 	return c.server.AppendSortedSet(ctx, req)
@@ -383,7 +383,7 @@ func (c *TestClient) PopList(ctx context.Context, req *proto.PopListRequest, opt
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.popListResponse != nil {
 		return c.popListResponse, nil
 	}
 	return c.server.PopList(ctx, req)
@@ -399,7 +399,7 @@ func (c *TestClient) RemoveList(ctx context.Context, req *proto.RemoveListReques
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.removeListResponse != nil {
 		return c.removeListResponse, nil
 	}
 	return c.server.RemoveList(ctx, req)
@@ -415,7 +415,7 @@ func (c *TestClient) RemoveSet(ctx context.Context, req *proto.RemoveSetRequest,
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.removeSetResponse != nil {
 		return c.removeSetResponse, nil
 	}
 	return c.server.RemoveSet(ctx, req)
@@ -431,7 +431,7 @@ func (c *TestClient) RemoveSortedSet(ctx context.Context, req *proto.RemoveSorte
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.removeSortedSetResponse != nil {
 		return c.removeSortedSetResponse, nil
 	}
 	return c.server.RemoveSortedSet(ctx, req)
@@ -447,7 +447,7 @@ func (c *TestClient) CheckList(ctx context.Context, req *proto.CheckListRequest,
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.checkListResponse != nil {
 		return c.checkListResponse, nil
 	}
 	return c.server.CheckList(ctx, req)
@@ -463,7 +463,7 @@ func (c *TestClient) CheckSet(ctx context.Context, req *proto.CheckSetRequest, o
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.checkSetResponse != nil {
 		return c.checkSetResponse, nil
 	}
 	return c.server.CheckSet(ctx, req)
@@ -479,7 +479,7 @@ func (c *TestClient) CheckSortedSet(ctx context.Context, req *proto.CheckSortedS
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.checkSortedSetResponse != nil {
 		return c.checkSortedSetResponse, nil
 	}
 	return c.server.CheckSortedSet(ctx, req)
@@ -512,7 +512,7 @@ func (c *TestClient) CAS(ctx context.Context, req *proto.CASRequest, opts ...grp
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.cASResponse != nil {
 		return c.cASResponse, nil
 	}
 	return c.server.CAS(ctx, req)
@@ -528,7 +528,7 @@ func (c *TestClient) GetRange(ctx context.Context, req *proto.GetRangeRequest, o
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.getRangeResponse != nil {
 		return c.getRangeResponse, nil
 	}
 	return c.server.GetRange(ctx, req)
