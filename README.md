@@ -39,3 +39,4 @@ INSERT: Google Drive Link
 - Restructuring backend data store to be compatible with multiple data types
 - Implementing the APIs (Create, Append, Check, Remove, etc) for the new back-end datatypes List, Set, and SortedSet
 - Adjusting the testing script to be able to connect to the new APIs (test_setup.go & test_clientpool.go)
+- Writing tests for the new data type APIs (Create, Append, Check, Remove, Pop, GetRange)
