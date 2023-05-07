@@ -1282,35 +1282,34 @@ func (server *KvServerImpl) PopList(
 	}
 	server.mySL.RUnlock()
 
-	value, ok := server.GetListDB().PopList(request.Key, shard)
-
-	if !ok {
-		return &proto.PopListResponse{Status: ok}, status.Error(codes.Internal, "InternalError Failed to pop from list")
+	value, status, err := server.GetListDB().PopList(request.Key, shard)
+	if err != nil {
+		return &proto.PopListResponse{}, err
 	}
+	return &proto.PopListResponse{Status: status, Value: value}, nil
 
-	return &proto.PopListResponse{Status: ok, Value: value}, nil
 }
 
-func (database *KvServerState) PopList(key string, shard int) (string, bool) {
+func (database *KvServerState) PopList(key string, shard int) (string, bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok || stripe.state[key].(List).value == nil {
-		return "", false
+		return "", false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(List)
 
 	if len(entry.value) == 0 {
-		return "", false
+		return "", false, nil
 	}
 
 	value := entry.value[0]
 	entry.value = entry.value[1:]
 	stripe.state[key] = entry
 
-	return value, true
+	return value, true, nil
 }
 
 func (server *KvServerImpl) GetRange(
@@ -1320,10 +1319,6 @@ func (server *KvServerImpl) GetRange(
 
 	if request.Key == "" {
 		return &proto.GetRangeResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
-	}
-
-	if request.Start > request.End {
-		return &proto.GetRangeResponse{}, status.Error(codes.InvalidArgument, "Start must be less than end")
 	}
 
 	server.rpcMutex.Lock()
