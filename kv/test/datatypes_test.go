@@ -312,3 +312,118 @@ func TestGetRangeComplex(t *testing.T) {
 	assert.Equal(t, []string{"alice", "joe", "gabe"}, values)
 
 }
+
+func TestGetRangeEmpty(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a list
+	err := setup.NodeCreateSortedSet("n1", "gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Get range of values from empty list
+	values, err := setup.NodeGetRange("n1", "gnd6", 1, -1)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{}, values)
+}
+
+func TestGetRangeNonExistent(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Get range of values from non-existent list
+	_, err := setup.NodeGetRange("n1", "gnd6", 1, -1)
+	assert.Error(t, err)
+
+}
+
+func TestListTtl(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a list
+	err := setup.NodeCreateList("n1", "gnd6", 1*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the list
+	err = setup.NodeAppendList("n1", "gnd6", "alice")
+	assert.Nil(t, err)
+
+	wasFound, err := setup.NodeCheckList("n1", "gnd6", "alice")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// sleep for 1 second (past TTL)
+	time.Sleep(2 * time.Second)
+
+	// Check that the list is gone
+	wasFound, err = setup.NodeCheckList("n1", "gnd6", "alice")
+	assert.Error(t, err)
+	assert.False(t, wasFound)
+
+	err = setup.NodeAppendList("n1", "gnd6", "alice")
+	assert.Error(t, err)
+
+	err = setup.NodeRemoveList("n1", "gnd6", "alice")
+	assert.Error(t, err)
+
+}
+
+func TestSetTtl(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a set
+	err := setup.NodeCreateSet("n1", "gnd6", 1*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the set
+	err = setup.NodeAppendSet("n1", "gnd6", "alice")
+	assert.Nil(t, err)
+
+	wasFound, err := setup.NodeCheckSet("n1", "gnd6", "alice")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// sleep for 1 second (past TTL)
+	time.Sleep(2 * time.Second)
+
+	// Check that the set is gone
+	wasFound, err = setup.NodeCheckSet("n1", "gnd6", "alice")
+	assert.Error(t, err)
+	assert.False(t, wasFound)
+
+	err = setup.NodeAppendSet("n1", "gnd6", "alice")
+	assert.Error(t, err)
+
+	err = setup.NodeRemoveSet("n1", "gnd6", "alice")
+	assert.Error(t, err)
+
+}
+
+func TestSortedSetTtl(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a sorted set
+	err := setup.NodeCreateSortedSet("n1", "gnd6", 1*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the sorted set
+	err = setup.NodeAppendSortedSet("n1", "gnd6", "alice", 1)
+	assert.Nil(t, err)
+
+	wasFound, err := setup.NodeCheckSortedSet("n1", "gnd6", "alice")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// sleep for 1 second (past TTL)
+	time.Sleep(2 * time.Second)
+
+	// Check that the sorted set is gone
+	wasFound, err = setup.NodeCheckSortedSet("n1", "gnd6", "alice")
+	assert.Error(t, err)
+	assert.False(t, wasFound)
+
+	err = setup.NodeAppendSortedSet("n1", "gnd6", "alice", 1)
+	assert.Error(t, err)
+
+	err = setup.NodeRemoveSortedSet("n1", "gnd6", "alice")
+	assert.Error(t, err)
+
+}

@@ -3,7 +3,6 @@ package kv
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -901,6 +900,11 @@ func (database *KvServerState) AppendList(key string, value string, shard int) b
 	}
 
 	entry := stripe.state[key].(List)
+
+	if entry.ttl.Before(time.Now()) {
+		return false
+	}
+
 	entry.value = append(entry.value, value)
 	stripe.state[key] = entry
 
@@ -946,6 +950,11 @@ func (database *KvServerState) AppendSet(key string, value string, shard int) bo
 	}
 
 	entry := stripe.state[key].(Set)
+
+	if entry.ttl.Before(time.Now()) {
+		return false
+	}
+
 	entry.value[value] = true
 	stripe.state[key] = entry
 
@@ -991,10 +1000,15 @@ func (database *KvServerState) AppendSortedSet(key string, value string, rank in
 	}
 
 	entry := stripe.state[key].(SortedSet)
-	status := entry.value.AddOrUpdate(value, sortedset.SCORE(rank), interface{}(nil))
+
+	if entry.ttl.Before(time.Now()) {
+		return false
+	}
+
+	entry.value.AddOrUpdate(value, sortedset.SCORE(rank), interface{}(nil))
 	stripe.state[key] = entry
 
-	return status
+	return true
 }
 
 func (server *KvServerImpl) RemoveList(
@@ -1018,30 +1032,38 @@ func (server *KvServerImpl) RemoveList(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetListDB().RemoveList(request.Key, request.Value, shard)
+	found, err := server.GetListDB().RemoveList(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.RemoveListResponse{}, err
+	}
 
 	return &proto.RemoveListResponse{Status: found}, nil
 }
 
-func (database *KvServerState) RemoveList(key string, value string, shard int) bool {
+func (database *KvServerState) RemoveList(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(List)
+
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
+
 	for i, v := range entry.value {
 		if v == value {
 			entry.value = append(entry.value[:i], entry.value[i+1:]...)
 			stripe.state[key] = entry
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func (server *KvServerImpl) RemoveSet(
@@ -1065,25 +1087,33 @@ func (server *KvServerImpl) RemoveSet(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetSetDB().RemoveSet(request.Key, request.Value, shard)
+	found, err := server.GetSetDB().RemoveSet(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.RemoveSetResponse{}, err
+	}
 
 	return &proto.RemoveSetResponse{Status: found}, nil
 }
 
-func (database *KvServerState) RemoveSet(key string, value string, shard int) bool {
+func (database *KvServerState) RemoveSet(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(Set)
+
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
+
 	delete(entry.value, value)
 	stripe.state[key] = entry
 
-	return true
+	return true, nil
 }
 
 func (server *KvServerImpl) RemoveSortedSet(
@@ -1107,25 +1137,33 @@ func (server *KvServerImpl) RemoveSortedSet(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetSortedSetDB().RemoveSortedSet(request.Key, request.Value, shard)
+	found, err := server.GetSortedSetDB().RemoveSortedSet(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.RemoveSortedSetResponse{}, err
+	}
 
 	return &proto.RemoveSortedSetResponse{Status: found}, nil
 }
 
-func (database *KvServerState) RemoveSortedSet(key string, value string, shard int) bool {
+func (database *KvServerState) RemoveSortedSet(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(SortedSet)
+
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
+
 	entry.value.Remove(value)
 	stripe.state[key] = entry
 
-	return true
+	return true, nil
 }
 
 func (server *KvServerImpl) CheckList(
@@ -1149,33 +1187,37 @@ func (server *KvServerImpl) CheckList(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetListDB().CheckList(request.Key, request.Value, shard)
+	found, err := server.GetListDB().CheckList(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.CheckListResponse{}, err
+	}
 
 	return &proto.CheckListResponse{Status: found}, nil
 }
 
-func (database *KvServerState) CheckList(key string, value string, shard int) bool {
+func (database *KvServerState) CheckList(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	// NOTE: change this when sorted list!
 	entry := stripe.state[key].(List)
 
-	// print out the list
-	fmt.Println(entry.value)
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
 
 	for _, v := range entry.value {
 		if v == value {
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
 func (server *KvServerImpl) CheckSet(
@@ -1199,24 +1241,32 @@ func (server *KvServerImpl) CheckSet(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetSetDB().CheckSet(request.Key, request.Value, shard)
+	found, err := server.GetSetDB().CheckSet(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.CheckSetResponse{}, err
+	}
 
 	return &proto.CheckSetResponse{Status: found}, nil
 }
 
-func (database *KvServerState) CheckSet(key string, value string, shard int) bool {
+func (database *KvServerState) CheckSet(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(Set)
+
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
+
 	_, found := entry.value[value]
 
-	return found
+	return found, nil
 }
 
 func (server *KvServerImpl) CheckSortedSet(
@@ -1240,24 +1290,32 @@ func (server *KvServerImpl) CheckSortedSet(
 	}
 	server.mySL.RUnlock()
 
-	found := server.GetSortedSetDB().CheckSortedSet(request.Key, request.Value, shard)
+	found, err := server.GetSortedSetDB().CheckSortedSet(request.Key, request.Value, shard)
+	if err != nil {
+		return &proto.CheckSortedSetResponse{}, err
+	}
 
 	return &proto.CheckSortedSetResponse{Status: found}, nil
 }
 
-func (database *KvServerState) CheckSortedSet(key string, value string, shard int) bool {
+func (database *KvServerState) CheckSortedSet(key string, value string, shard int) (bool, error) {
 	stripe := database.stripes[shard]
 	stripe.mutex.Lock()
 	defer stripe.mutex.Unlock()
 
 	if _, ok := stripe.state[key]; !ok {
-		return false
+		return false, status.Error(codes.NotFound, "Key not found")
 	}
 
 	entry := stripe.state[key].(SortedSet)
+
+	if entry.ttl.Before(time.Now()) {
+		return false, status.Error(codes.NotFound, "Key expired")
+	}
+
 	node := entry.value.GetByKey(value)
 
-	return node != nil
+	return node != nil, nil
 
 }
 
@@ -1300,6 +1358,10 @@ func (database *KvServerState) PopList(key string, shard int) (string, bool, err
 	}
 
 	entry := stripe.state[key].(List)
+
+	if entry.ttl.Before(time.Now()) {
+		return "", false, status.Error(codes.NotFound, "Key expired")
+	}
 
 	if len(entry.value) == 0 {
 		return "", false, nil
@@ -1352,6 +1414,11 @@ func (database *KvServerState) GetRange(key string, start int64, end int64, shar
 	}
 
 	entry := stripe.state[key].(SortedSet)
+
+	if entry.ttl.Before(time.Now()) {
+		return nil, false
+	}
+
 	nodes := entry.value.GetByRankRange(int(start), int(end), false)
 
 	values := make([]string, len(nodes))
