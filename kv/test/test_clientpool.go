@@ -489,6 +489,7 @@ func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, o
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	atomic.AddUint64(&c.requestsSent, 1)
+
 	if c.err != nil {
 		return nil, c.err
 	}
@@ -496,6 +497,7 @@ func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, o
 		time.Sleep(*c.latencyInjection)
 	}
 	if c.multiSetResponse != nil {
+		log.Printf("failedKeys %s", c.multiSetResponse.FailedKeys)
 		return c.multiSetResponse, nil
 	}
 	log.Printf("server %p", c.server)

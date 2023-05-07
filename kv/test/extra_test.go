@@ -1,6 +1,7 @@
 package kvtest
 
 import (
+	"log"
 	"testing"
 	"time"
 
@@ -189,7 +190,7 @@ func TestClientTimeout(t *testing.T) {
 
 }
 
-// MultiSet Unit Test (same as TestBasic but replace Get with MultiSet)
+// BEGIN MULTISET TESTS
 func TestMultiSetServerBasicUnsharded(t *testing.T) {
 	RunTestWith(t, RunMultiSetBasic, MakeTestSetup(MakeBasicOneShard()))
 }
@@ -350,4 +351,33 @@ func TestClientMultiSetSingleNode(t *testing.T) {
 	err = setup.Delete("abc")
 	assert.Nil(t, err)
 	assert.Equal(t, 3, setup.clientPool.GetRequestsSent("n1"))
+}
+
+func TestClientMultiSetMultiNode(t *testing.T) {
+	// Tests fan-out of Set and Delete calls. If multiple nodes
+	// host the same shard, your client logic must send the RPCs
+	// to all nodes instead of just one.
+	setup := MakeTestSetupWithoutServers(MakeTwoNodeBothAssignedSingleShard())
+	failedKeyExample := make([]string, 0)
+	failedKeyExample = append(failedKeyExample, "abc")
+	setup.clientPool.OverrideMultiSetResponse("n1", failedKeyExample)
+	setup.clientPool.OverrideMultiSetResponse("n2", failedKeyExample)
+
+	res1, err := setup.MultiSet([]string{"abc", "def"}, []string{"123", "456"}, 1*time.Second)
+	log.Printf("res1: %v", res1)
+	assert.Nil(t, err)
+
+	// Set requests should go to both replicas
+	assert.Equal(t, 1, setup.clientPool.GetRequestsSent("n1"))
+	assert.Equal(t, 1, setup.clientPool.GetRequestsSent("n2"))
+	assert.Greater(t, len(res1), 0)
+
+	setup.clientPool.OverrideDeleteResponse("n1")
+	setup.clientPool.OverrideDeleteResponse("n2")
+	err = setup.Delete("abc")
+	assert.Nil(t, err)
+
+	// Same for deletes
+	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n1"))
+	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n2"))
 }

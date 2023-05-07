@@ -233,10 +233,10 @@ func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl 
 					"kvClient":     kvClient},
 				).Trace("arguments for MultiSet call")
 
-				_, grpc_err := kvClient.MultiSet(ctx, &proto.MultiSetRequest{Key: shard_keys, Value: shard_values, TtlMs: expiryTime})
-				if grpc_err != nil {
+				res, grpc_err := kvClient.MultiSet(ctx, &proto.MultiSetRequest{Key: shard_keys, Value: shard_values, TtlMs: expiryTime})
+				if grpc_err != nil || len(res.FailedKeys) != 0 {
 					failedKeys.mu.Lock()
-					failedKeys.keys = append(failedKeys.keys, shard_keys...) // don't set error?
+					failedKeys.keys = append(failedKeys.keys, res.FailedKeys...) // don't set error?
 					failedKeys.mu.Unlock()
 				}
 
