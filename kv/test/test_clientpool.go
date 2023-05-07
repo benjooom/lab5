@@ -500,7 +500,7 @@ func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, o
 		log.Printf("failedKeys %s", c.multiSetResponse.FailedKeys)
 		return c.multiSetResponse, nil
 	}
-	log.Printf("server %p", c.server)
+	//log.Printf("server %p", c.server)
 	return c.server.MultiSet(ctx, req)
 }
 

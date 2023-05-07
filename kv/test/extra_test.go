@@ -2,6 +2,8 @@ package kvtest
 
 import (
 	"log"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -380,4 +382,61 @@ func TestClientMultiSetMultiNode(t *testing.T) {
 	// Same for deletes
 	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n1"))
 	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n2"))
+}
+
+func TestIntegrationMultiSetBasic(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	_, err := setup.MultiSet([]string{"abc", "def", "ghi"}, []string{"123", "jkl", "mno"}, 10*time.Second)
+	assert.Nil(t, err)
+
+	_, err = setup.MultiSet([]string{"ac", "df", "gh"}, []string{"123", "jkl", "mno"}, 10*time.Second)
+	assert.Nil(t, err)
+
+	val, wasFound, err := setup.Get("abc")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+	assert.Equal(t, "123", val)
+
+	setup.Shutdown()
+}
+
+func TestIntegrationMultiSetConcurrent(t *testing.T) {
+	setup := MakeTestSetup(MakeFourNodesWithFiveShards())
+
+	const numGoros = 30
+	const numIters = 500 // should be >= 200
+	keys := RandomKeys(1000, 20)
+	vals := RandomKeys(1000, 40)
+
+	found := make([]int32, 1000)
+	var wg sync.WaitGroup
+	wg.Add(numGoros)
+	for i := 0; i < numGoros; i++ {
+		go func(i int) {
+			for j := 0; j < numIters; j++ {
+				_, err := setup.MultiSet(keys[(i*100+j)%179*5:(i*100+j)%179*5+5], vals[(j*100+i)%179*5:(j*100+i)%179*5+5], 100*time.Second)
+				assert.Nil(t, err)
+				for k := 0; k < 1000; k++ {
+					_, wasFound, err := setup.Get(keys[k])
+					assert.Nil(t, err)
+					if wasFound {
+						atomic.StoreInt32(&found[k], 1)
+					}
+				}
+			}
+			wg.Done()
+		}(i)
+	}
+	wg.Wait()
+
+	// eventually the Gets will have observed the Sets
+	for i := 0; i < 179; i++ {
+		assert.True(t, found[i*5] == 1)
+	}
+	for i := 179; i < 200; i++ {
+		assert.False(t, found[i*5] == 1)
+	}
+
+	setup.Shutdown()
 }

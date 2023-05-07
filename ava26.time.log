@@ -9,7 +9,7 @@ Date  Started  Spent Work completed
 05/03  4:00pm  1:30  Finished writing rough MultiSet function (still uses Set, not custom Set)
 05/05  2:20pm  0:30  Setting up MultiSet client
 05/06  3:00pm  2:30  Wrote MultiSet client code and tested server
-05/06  8:00pm
+05/06  8:00pm  3:30  Wrote MultiSet client and integration tests and fixed slight client bug
                ----
               00:00  TOTAL time spent
 
