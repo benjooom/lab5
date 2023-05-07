@@ -59,10 +59,9 @@ func (kv *Kv) Get(ctx context.Context, key string) (string, bool, error) {
 		kvClient, client_err := kv.clientPool.GetClient(node)
 
 		if client_err != nil { // For now (though see B3), any errors returned from GetClient or the RPC can be propagated back to the caller as ("", false, err)
-			//fmt.Println("client error: ", client_err)
 			err = client_err
 			continue
-			//return "", false, client_err
+
 		}
 
 		// create a GetRequest and send it with KvClient.Get
@@ -135,21 +134,20 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 
 //NEW LAB5 FUNCTION: MULTISET
 
-func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl time.Duration) (*proto.MultiSetResponse, error) {
+func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl time.Duration) ([]string, error) {
 	logrus.WithFields(
 		logrus.Fields{"keys": keys},
 	).Trace("client sending MultiSet() request")
-	panic("TODO: Multiset")
 
 	// essential error-checking
 	if len(keys) == 0 {
-		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
+		return make([]string, 0), status.Error(codes.InvalidArgument, "Must provide at least one key-value pair")
 	}
 	if len(keys) != len(values) {
-		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "Keys and values must be the same length")
+		return make([]string, 0), status.Error(codes.InvalidArgument, "Keys and values must be the same length")
 	}
 	if ttl <= 0 {
-		return &proto.MultiSetResponse{FailedKeys: make([]string, 0)}, status.Error(codes.InvalidArgument, "TTL must be a positive value")
+		return make([]string, 0), status.Error(codes.InvalidArgument, "TTL must be a positive value")
 	}
 
 	// calculate the appropriate shards and build map
@@ -226,6 +224,15 @@ func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl 
 					shard_values = append(shard_values, data[i].Value)
 				}
 
+				logrus.WithFields(logrus.Fields{
+					"shardKeys":    shard_keys,
+					"shardValues":  shard_values,
+					"milliseconds": expiryTime,
+					"ctx":          ctx,
+					"node":         node,
+					"kvClient":     kvClient},
+				).Trace("arguments for MultiSet call")
+
 				_, grpc_err := kvClient.MultiSet(ctx, &proto.MultiSetRequest{Key: shard_keys, Value: shard_values, TtlMs: expiryTime})
 				if grpc_err != nil {
 					failedKeys.mu.Lock()
@@ -239,7 +246,7 @@ func (kv *Kv) MultiSet(ctx context.Context, keys []string, values []string, ttl 
 
 		}
 	}
-	return &proto.MultiSetResponse{FailedKeys: failedKeys.keys}, err
+	return failedKeys.keys, err
 }
 
 func (kv *Kv) Delete(ctx context.Context, key string) error {

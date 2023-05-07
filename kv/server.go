@@ -569,7 +569,6 @@ func (server *KvServerImpl) MultiSet(
 	}
 	failedKeys := KeySet{keys: make([]string, 0)}
 	shardDataMap := ShardDataMap{skmap: make(map[int][]KeyValuePair)}
-
 	expiryTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
 
 	// instantaneous locking and unlocking to ensure finish updates?
@@ -608,9 +607,7 @@ func (server *KvServerImpl) MultiSet(
 					shardDataMap.skmap[shard] = append(shardDataMap.skmap[shard], KeyValuePair{key, value})
 				}
 				shardDataMap.mu.Unlock()
-
 			}
-
 		}(i)
 	}
 	wg.Wait()
@@ -639,16 +636,12 @@ func (server *KvServerImpl) MultiSet(
 				failedKeys.keys = append(failedKeys.keys, shard_keys...) // don't set error?
 				failedKeys.mu.Unlock()
 			}
-
 		}()
-
 		wg.Wait()
-
 	}
 
 	// return
 	return &proto.MultiSetResponse{FailedKeys: failedKeys.keys}, nil
-
 }
 
 func (server *KvServerImpl) CAS(
