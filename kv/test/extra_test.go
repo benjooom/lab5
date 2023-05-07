@@ -330,3 +330,24 @@ func TestServerMultiSetRestartShardCopy(t *testing.T) {
 
 	setup.Shutdown()
 }
+
+func TestClientMultiSetSingleNode(t *testing.T) {
+	// Similar to TestClientGetSingleNode: one node, one shard,
+	// testing that Set/Delete RPCs are sent.
+	setup := MakeTestSetupWithoutServers(MakeBasicOneShard())
+	setup.clientPool.OverrideSetResponse("n1")
+	setup.clientPool.OverrideDeleteResponse("n1")
+	setup.clientPool.OverrideMultiSetResponse("n1", make([]string, 0))
+
+	err := setup.Set("hi", "omg", 10*time.Second)
+	assert.Nil(t, err)
+	assert.Equal(t, 1, setup.clientPool.GetRequestsSent("n1"))
+
+	_, err = setup.MultiSet([]string{"abc", "doremi"}, []string{"123", "fasola"}, 10*time.Second)
+	assert.Nil(t, err)
+	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n1"))
+
+	err = setup.Delete("abc")
+	assert.Nil(t, err)
+	assert.Equal(t, 3, setup.clientPool.GetRequestsSent("n1"))
+}

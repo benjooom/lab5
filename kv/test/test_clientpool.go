@@ -2,6 +2,7 @@ package kvtest
 
 import (
 	"context"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -75,6 +76,13 @@ func (cp *TestClientPool) OverrideDeleteResponse(nodeName string) {
 	defer cp.mutex.RUnlock()
 	cp.nodes[nodeName].OverrideDeleteResponse()
 }
+
+func (cp *TestClientPool) OverrideMultiSetResponse(nodeName string, failedKeys []string) {
+	cp.mutex.RLock()
+	defer cp.mutex.RUnlock()
+	cp.nodes[nodeName].OverrideMultiSetResponse(failedKeys)
+}
+
 func (cp *TestClientPool) OverrideGetShardContentsResponse(nodeName string, response *proto.GetShardContentsResponse) {
 	cp.mutex.RLock()
 	defer cp.mutex.RUnlock()
@@ -168,15 +176,19 @@ func (c *TestClient) Set(ctx context.Context, req *proto.SetRequest, opts ...grp
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	atomic.AddUint64(&c.requestsSent, 1)
+
 	if c.err != nil {
 		return nil, c.err
 	}
 	if c.latencyInjection != nil {
+
 		time.Sleep(*c.latencyInjection)
 	}
 	if c.setResponse != nil {
+		log.Printf("HI server %p", c.server)
 		return c.setResponse, nil
 	}
+
 	return c.server.Set(ctx, req)
 }
 func (c *TestClient) Delete(ctx context.Context, req *proto.DeleteRequest, opts ...grpc.CallOption) (*proto.DeleteResponse, error) {
@@ -244,6 +256,12 @@ func (c *TestClient) OverrideDeleteResponse() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	c.deleteResponse = &proto.DeleteResponse{}
+}
+
+func (c *TestClient) OverrideMultiSetResponse(failedKeys []string) {
+	c.mutex.Lock()
+	defer c.mutex.Unlock()
+	c.multiSetResponse = &proto.MultiSetResponse{FailedKeys: failedKeys}
 }
 
 // Not used by tests, but you may use it in your own tests
@@ -477,9 +495,10 @@ func (c *TestClient) MultiSet(ctx context.Context, req *proto.MultiSetRequest, o
 	if c.latencyInjection != nil {
 		time.Sleep(*c.latencyInjection)
 	}
-	if c.getShardContentsResponse != nil {
+	if c.multiSetResponse != nil {
 		return c.multiSetResponse, nil
 	}
+	log.Printf("server %p", c.server)
 	return c.server.MultiSet(ctx, req)
 }
 

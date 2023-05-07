@@ -223,9 +223,10 @@ func (ts *TestSetup) CAS(key string, value string, expected string, ttl time.Dur
 	return ts.kv.CAS(ts.ctx, key, value, expected, ttl)
 }
 
-//	func (ts *TestSetup) MultiSet(key []string, value []string, ttl time.Duration) error {
-//		return ts.kv.MultiSet(ts.ctx, key, value, ttl)
-//	}
+// correct to return failed keys?
+func (ts *TestSetup) MultiSet(key []string, value []string, ttl time.Duration) ([]string, error) {
+	return ts.kv.MultiSet(ts.ctx, key, value, ttl)
+}
 
 func (ts *TestSetup) GetRange(key string, start int64, end int64) ([]string, error) {
 	return ts.kv.GetRange(ts.ctx, key, start, end)
