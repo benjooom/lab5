@@ -179,5 +179,5 @@ service Kv {
 
 	rpc GetRange(GetRangeRequest) returns (GetRangeResponse);
 
-	rpc GetShardContents(GetShardContentsRequest) returns (stream GetShardContentsResponse);
+	rpc GetShardContents(GetShardContentsRequest) returns (stream GetShardContentsResponse) {};
 }
