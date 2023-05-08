@@ -3,6 +3,9 @@ package kv
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
+	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -279,69 +282,84 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 		shardMap[toAdd[i]] = server.shardMap.NodesForShard(toAdd[i])
 	}
 
-	/*
-		clientMap := make(map[string]proto.KvClient)
-		for shard, nodes := range shardMap {
-			// Create a client for each owner if it doesn't already exist
-			for _, node := range nodes {
-				// Make sure owner is not this node
-				if node == server.nodeName {
-					continue
-				}
-
-				// Create a client if it doesn't already exist
-				if _, ok := clientMap[node]; !ok {
-					client, err := server.clientPool.GetClient(node)
-					if err != nil {
-						continue
-					}
-					clientMap[node] = client
-				}
+	clientMap := make(map[string]proto.KvClient)
+	for shard, nodes := range shardMap {
+		// Create a client for each owner if it doesn't already exist
+		for _, node := range nodes {
+			// Make sure owner is not this node
+			if node == server.nodeName {
+				continue
 			}
 
-			// Create a list of owners and shuffle it
-			owners := make([]string, len(nodes))
-			copy(owners, nodes)
-			rand.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
-
-			// While there is an error, keep trying to get data from owners
-			for index := len(owners) - 1; index >= 0; index-- {
-
-				// Retrieve a client from the clientMap at index if it exists
-				_, ok := clientMap[owners[index]]
-				if !ok {
-					continue
-				}
-
-				// Use client to GetShardContents
-				// Create a context with a timeout of 2 second
-				ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-
-				// Get the shard contents from the owner
-				response, err := clientMap[owners[index]].GetShardContents(ctx, &proto.GetShardContentsRequest{Shard: int32(shard)})
+			// Create a client if it doesn't already exist
+			if _, ok := clientMap[node]; !ok {
+				client, err := server.clientPool.GetClient(node)
 				if err != nil {
 					continue
 				}
-
-				stripe := server.GetStringDB().stripes[shard]
-				stripe.mutex.Lock()
-
-				// Wipe out the previous data in the stripe
-				stripe.state = make(map[string]Entry)
-
-				// response.Recv()
-
-				Add all the new data to the stripe
-				for i := range response.Values {
-					stripe.state[response.Values[i].Key] = String{response.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(response.Values[i].TtlMsRemaining))}
-				}
-				stripe.mutex.Unlock()
-
-				break
+				clientMap[node] = client
 			}
 		}
-	*/
+
+		// Create a list of owners and shuffle it
+		owners := make([]string, len(nodes))
+		copy(owners, nodes)
+		rand.Shuffle(len(owners), func(i, j int) { owners[i], owners[j] = owners[j], owners[i] })
+
+		// While there is an error, keep trying to get data from owners
+		for index := len(owners) - 1; index >= 0; index-- {
+
+			// Retrieve a client from the clientMap at index if it exists
+			_, ok := clientMap[owners[index]]
+			if !ok {
+				continue
+			}
+
+			// Get the shard contents from the owner
+
+			stream, err := clientMap[owners[index]].GetShardContents(context.Background(), &proto.GetShardContentsRequest{Shard: int32(shard)})
+			fmt.Printf("Stream: %v, err: %v\n", stream, err)
+			if err != nil {
+				continue
+			}
+
+			done := make(chan bool)
+			go func(stream proto.Kv_GetShardContentsClient, done chan bool) {
+				for {
+					resp, err := stream.Recv()
+					if err == io.EOF {
+						done <- true
+						return
+					}
+					if err != nil {
+						done <- false
+						return
+					}
+
+					stripe := server.GetStringDB().stripes[shard]
+					stripe.mutex.Lock()
+
+					// Wipe out the previous data in the stripe
+					stripe.state = make(map[string]Entry)
+
+					//Add all the new data to the stripe
+					for i := range resp.Values {
+						stripe.state[resp.Values[i].Key] = String{resp.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].TtlMsRemaining))}
+					}
+					stripe.mutex.Unlock()
+				}
+			}(stream, done)
+
+			// Wait for the stream to finish
+			success := <-done
+			if !success {
+				continue
+			}
+
+			break
+		}
+	}
+
 }
 
 func (server *KvServerImpl) handleShardMapUpdate() {
@@ -712,31 +730,43 @@ func (server *KvServerImpl) GetShardContents(
 	request *proto.GetShardContentsRequest,
 	srv proto.Kv_GetShardContentsServer,
 ) error {
-
-	// TODO: STREAMING (BEN)
-
+	fmt.Printf("GetShardContents() called on node %s\n", server.nodeName)
 	server.mySL.RLock()
 	defer server.mySL.RUnlock()
+	var wg sync.WaitGroup
+
 	if !slices.Contains(server.myShards, int(request.Shard)) {
 		return nil
 	}
 
 	// Initialize necessary variables
-	values := make([]*proto.GetShardValue, 0)
-
+	values := make([]*proto.GetShardValue, 1)
 	stripe := server.GetStringDB().stripes[int(request.Shard)]
+
 	stripe.mutex.Lock()
 	for key := range stripe.state {
-		// If the key is expired, don't copy it
-		newValue := &proto.GetShardValue{
-			Key:            key,
-			Value:          stripe.state[key].GetValue().(string),
-			TtlMsRemaining: time.Until(stripe.state[key].GetExpiry()).Milliseconds(),
-		}
-		values = append(values, newValue)
+		wg.Add(1)
+		go func(key string, value string, expiry time.Time) {
+			defer wg.Done()
+			values[0] = &proto.GetShardValue{
+				Key:            key,
+				Value:          value,
+				TtlMsRemaining: time.Until(expiry).Milliseconds(),
+			}
+			resp := &proto.GetShardContentsResponse{
+				Values: values,
+			}
+			err := srv.Send(resp)
+			if err != nil {
+				logrus.WithFields(
+					logrus.Fields{"node": server.nodeName, "key": key},
+				).Error("error sending response")
+			}
+		}(key, stripe.state[key].GetValue().(string), stripe.state[key].GetExpiry())
 	}
 	stripe.mutex.Unlock()
 
+	wg.Wait()
 	return nil
 }
 

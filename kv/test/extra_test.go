@@ -1,6 +1,8 @@
 package kvtest
 
 import (
+	"context"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"cs426.yale.edu/lab4/kv"
+	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,13 +42,20 @@ func TestGetShardContentsSimple(t *testing.T) {
 	err := setup.NodeSet("n1", "abc", "123", 10*time.Second)
 	assert.Nil(t, err)
 
-	// TOOD: GetShardContents is not implemented yet (BEN)
-
+	// Get client
+	client := setup.clientPool.nodes["n1"]
 	// GetShardContents should return the data we just set
-	// val, err := setup.nodes["n1"].GetShardContents(setup.ctx, &proto.GetShardContentsRequest{Shard: 1})
-	// assert.Nil(t, err)
-	// assert.Equal(t, "123", val.Values[0].Value)
-
+	stream, err := client.GetShardContents(context.Background(), &proto.GetShardContentsRequest{Shard: 1})
+	fmt.Printf("stream: %v\n", stream)
+	assert.Nil(t, err)
+	for {
+		resp, err := stream.Recv()
+		if err != nil {
+			break
+		}
+		assert.Equal(t, "abc", resp.Values[0].Key)
+		assert.Equal(t, "123", resp.Values[0].Value)
+	}
 	setup.Shutdown()
 }
 
