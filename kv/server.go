@@ -316,7 +316,6 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 			}
 
 			// Get the shard contents from the owner
-
 			stream, err := clientMap[owners[index]].GetShardContents(context.Background(), &proto.GetShardContentsRequest{Shard: int32(shard)})
 			fmt.Printf("Stream: %v, err: %v\n", stream, err)
 			if err != nil {
@@ -344,6 +343,7 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 
 					//Add all the new data to the stripe
 					for i := range resp.Values {
+						fmt.Printf("Adding %v to stripe\n", resp.Values[i].Key)
 						stripe.state[resp.Values[i].Key] = String{resp.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].TtlMsRemaining))}
 					}
 					stripe.mutex.Unlock()
@@ -730,7 +730,6 @@ func (server *KvServerImpl) GetShardContents(
 	request *proto.GetShardContentsRequest,
 	srv proto.Kv_GetShardContentsServer,
 ) error {
-	fmt.Printf("GetShardContents() called on node %s\n", server.nodeName)
 	server.mySL.RLock()
 	defer server.mySL.RUnlock()
 	var wg sync.WaitGroup
@@ -742,12 +741,14 @@ func (server *KvServerImpl) GetShardContents(
 	// Initialize necessary variables
 	values := make([]*proto.GetShardValue, 1)
 	stripe := server.GetStringDB().stripes[int(request.Shard)]
+	fmt.Printf("ENTERED GET SHARD CONTENTS\n")
 
 	stripe.mutex.Lock()
 	for key := range stripe.state {
 		wg.Add(1)
 		go func(key string, value string, expiry time.Time) {
 			defer wg.Done()
+			fmt.Printf("!!!!GetShardContents(): key: %s, value: %s, expiry: %s\n", key, value, expiry)
 			values[0] = &proto.GetShardValue{
 				Key:            key,
 				Value:          value,

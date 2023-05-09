@@ -2,6 +2,7 @@ package kvtest
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -206,7 +207,9 @@ func (c *TestClient) Delete(ctx context.Context, req *proto.DeleteRequest, opts 
 	}
 	return c.server.Delete(ctx, req)
 }
+
 func (c *TestClient) GetShardContents(ctx context.Context, req *proto.GetShardContentsRequest, opts ...grpc.CallOption) (proto.Kv_GetShardContentsClient, error) {
+	fmt.Printf("get shard contents called in test_clientpool.go\n")
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
 	atomic.AddUint64(&c.requestsSent, 1)
@@ -220,7 +223,19 @@ func (c *TestClient) GetShardContents(ctx context.Context, req *proto.GetShardCo
 		return nil, nil
 	}
 	// TODO: and fix this (BEN)
-	// return c.server.GetShardContents(req,)
+	// stream, err := c.server.clientPool.NewClientStream(ctx, &grpc.StreamDesc{
+	// 	StreamName:    "GetShardContents",
+	// 	ClientStreams: true,
+	// 	ServerStreams: true,
+	// })
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// err = stream.SendMsg(req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// return stream, nil
 	return nil, nil
 }
 

@@ -8,6 +8,8 @@ package proto
 
 import (
 	context "context"
+	"fmt"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -224,6 +226,7 @@ func (c *kvClient) GetRange(ctx context.Context, in *GetRangeRequest, opts ...gr
 }
 
 func (c *kvClient) GetShardContents(ctx context.Context, in *GetShardContentsRequest, opts ...grpc.CallOption) (Kv_GetShardContentsClient, error) {
+	fmt.Printf("IN kv_grpc.pb.go stream:")
 	stream, err := c.cc.NewStream(ctx, &Kv_ServiceDesc.Streams[0], "/kv.Kv/GetShardContents", opts...)
 	if err != nil {
 		return nil, err
