@@ -32,6 +32,8 @@ cd into kv/test/ and run go test
 
 INSERT: how to change the IPs to run on your computers!?
 
+Run command to 
+
 ## Testing
 
 INSERT: how to run the testing script
@@ -44,7 +46,11 @@ INSERT: Google Drive Links
 
 ## Group Work
 
-### Alice ():
+### Alice (ava26):
+- Wrote MultiSet client and server code, proto modifications
+- Wrote MultiSet test cases (unit and integration), wrote corresponding write-up
+- Modified stress tester to run queries using list and sorted set
+- Compared latency for various cases with stress tester
 
 ### Ben ():
 

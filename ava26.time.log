@@ -20,3 +20,5 @@ Date  Started  Spent Work completed
               23:30  TOTAL time spent
 
 I only worked with my group and Xiao.
+
+I really enjoyed working on this project. The biggest thing I learned was how to conceptually design an API like MultiSet, now that there was no lengthy documentation or edge case tests for me to work with. I had to discuss with my teammates possible designs and tradeoffs (e.g. partial/full atomicity vs. overhead) and think about special behaviors (e.g. duplicate keys) and how to best handle these cases. Working with source code with little documentation was a large challenge for this assignment, especially for the stress tester. Although I'd worked with the stress tester before for lab4, our team didn't modify any of the stress tester code, so this was the first time I had to closely look through the code and add my own functions and variables.
