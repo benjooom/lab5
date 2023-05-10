@@ -58,6 +58,7 @@ var (
 	maxPendingRequests = flag.Int("max-pending", 100, "Maximum number of in-flight requests before the stress tester slows down")
 	numKeys            = flag.Int("num-keys", 1000, "Number of unique keys to stress")
 	ttl                = flag.Duration("ttl", 2*time.Second, "TTL of values to set on keys")
+	setType            = flag.Bool("set-type", false, "Whether to use a sorted list (true) or normal list for the stress test")
 )
 
 /*
@@ -213,12 +214,21 @@ func (st *stressTester) stressSets() {
 	})
 }
 
-func (st *stressTester) stressSliceChecks() {
+func (st *stressTester) stressSliceChecks(setType bool) {
 	st.stressLoop("StressSliceChecks", *sliceCheckQps, func(ctx context.Context, key, value string) {
 		startTime := time.Now()
 
 		initialVersion, writesPending := st.cc.BeginCheckSlice(key)
-		wasFound, err := st.kv.CheckList(ctx, key, value)
+
+		var wasFound bool
+		var err error
+
+		if setType {
+			wasFound, err = st.kv.CheckSet(ctx, key, value)
+		} else {
+			wasFound, err = st.kv.CheckList(ctx, key, value)
+		}
+
 		latency := time.Since(startTime)
 
 		atomic.AddUint64(&st.sliceChecks, 1)
@@ -241,12 +251,17 @@ func (st *stressTester) stressSliceChecks() {
 	})
 }
 
-func (st *stressTester) stressSliceAppends() {
+func (st *stressTester) stressSliceAppends(setType bool) {
 	st.stressLoop("StressSliceAppends", *sliceAppendQps, func(ctx context.Context, key, value string) {
 		startTime := time.Now()
 		initialVersion := st.cc.BeginWrite(key)
+		var err error
 
-		err := st.kv.AppendList(ctx, key, value)
+		if setType {
+			err = st.kv.AppendSet(ctx, key, value)
+		} else {
+			err = st.kv.AppendList(ctx, key, value)
+		}
 
 		latency := time.Since(startTime)
 		endTime := time.Now()
@@ -271,9 +286,13 @@ func (st *stressTester) wait() {
 	st.wg.Wait()
 }
 
-func (st *stressTester) initializeLists() {
+func (st *stressTester) initializeCollections(setType bool) {
 	for _, key := range st.listKeys {
-		st.kv.CreateList(context.Background(), key, 1000*time.Second) // sufficiently high time so it outlives the execution of the stress tester
+		if !setType {
+			st.kv.CreateList(context.Background(), key, 1000*time.Second) // sufficiently high time so it outlives the execution of the stress tester
+		} else {
+			st.kv.CreateSet(context.Background(), key, 1000*time.Second) // sufficiently high time so it outlives the execution of the stress tester
+		}
 	}
 }
 
@@ -292,7 +311,7 @@ func main() {
 	tester := makeStressTester(client)
 	start := time.Now()
 	//tester.wg.Add(2)
-	tester.initializeLists()
+	tester.initializeCollections(*setType)
 	if *getQps != 0 {
 		tester.wg.Add(1)
 		go tester.stressGets()
@@ -303,11 +322,11 @@ func main() {
 	}
 	if *sliceCheckQps != 0 {
 		tester.wg.Add(1)
-		go tester.stressSliceChecks()
+		go tester.stressSliceChecks(*setType)
 	}
 	if *sliceAppendQps != 0 {
 		tester.wg.Add(1)
-		go tester.stressSliceAppends()
+		go tester.stressSliceAppends(*setType)
 	}
 	tester.wait()
 	testDuration := time.Since(start)

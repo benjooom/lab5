@@ -18,12 +18,12 @@ This key-value store has implemented various data types.
 ### New APIs
 
 - MultiSet:
-  - Gaurantees: is atomic in xyz context
+  - Guarantees: is atomic in xyz context
 
 - Compare-And-Swap:
-  - Gaurantees: will only update the key's value if the present key matches the expected key.
+  - Guarantees: will only update the key's value if the present key matches the expected key.
 
-### Deployment
+## Deployment
 
 Deploying our system on active and distributed nodes in a network is pretty easy. You simply edit the shard maps in the shardmaps folder to assign each node the correct IP. A computer's/server's IP address can be obtained by running `ifconfig` in shell. Once you write your shard map to define the system specifications and node/IP pairs, run the system on each computer/server as the node which holds its IP in the shard map. For example, if my computer's IP address is recorded as belonging to node 1 in the shard map, I would run: `go run cmd/server/server.go --shardmap shardmaps/[shardmap_name.json] --node n1`.
 
@@ -47,8 +47,9 @@ cd into kv/test/ and run go execute all related test (client-side, server-side, 
 ### Alice (ava26):
 - Wrote MultiSet client and server code, proto modifications
 - Wrote MultiSet test cases (unit and integration), wrote corresponding write-up
-- Modified stress tester to run queries using list and sorted set
+- Modified stress tester, adding new flags and functions, to run queries using list and sorted set
 - Compared latency for various cases with stress tester
+- Wrote MultiSet portion of the write-up, added generated graphs, and helped write other sections (relevant work, abstract, conclusion, etc.) 
 
 ### Ben (bm746):
 - Learned how to use protoc to manipulate and generate proto files.
