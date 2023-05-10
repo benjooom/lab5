@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Correctness checker to run alongside the stress tester.
@@ -82,7 +84,7 @@ func printValues(vals []stateValue) string {
 }
 
 type ConsistencyChecker struct {
-	// Updated atomically
+	// Updated atomically (combine regular read check and list check)
 	ChecksRun uint64
 
 	mutex sync.RWMutex
@@ -95,14 +97,20 @@ type ConsistencyChecker struct {
 	version map[string]int
 	// Reference count of pending writes for concurrency control
 	rc map[string]int
+	// Reference count of pending list writes for concurrency control
+	rcList map[string]int
+	// List values (if applicable)
+	listValues map[string][]stateValue
 }
 
 func MakeConsistencyChecker() *ConsistencyChecker {
 	return &ConsistencyChecker{
 		values:            make(map[string]map[string]stateValue),
+		listValues:        make(map[string][]stateValue),
 		overwrittenValues: make(map[string]map[string]stateValue),
 		version:           make(map[string]int),
 		rc:                make(map[string]int),
+		rcList:            make(map[string]int),
 	}
 }
 
@@ -167,6 +175,53 @@ func (cc *ConsistencyChecker) CompleteWrite(
 	cc.version[key] += 1
 }
 
+// ADD: BEGINAPPENDSLICE & COMPLETEAPPENDSLICE
+func (cc *ConsistencyChecker) BeginAppendSlice(key string) int {
+	if !*checkCorrectness {
+		return 0
+	}
+
+	cc.mutex.Lock()
+	defer cc.mutex.Unlock()
+	cc.rcList[key] += 1 // count as a pending write?
+	return cc.version[key]
+}
+
+/*
+Unlike reads, the lists don't have TTLs
+*/
+func (cc *ConsistencyChecker) CompleteAppendSlice(
+	key, value string,
+	err error,
+	initialVersion int,
+	maybeExpiredBy time.Time,
+	definitelyExpiredBy time.Time,
+) {
+
+	if !*checkCorrectness {
+		return
+	}
+
+	cc.mutex.Lock()
+	defer cc.mutex.Unlock()
+
+	newVal := stateValue{
+		value:               value,
+		maybeExpiredBy:      maybeExpiredBy,
+		definitelyExpiredBy: definitelyExpiredBy.Add(*ttlCheckBuffer),
+		writtenAt:           time.Now(),
+		err:                 err,
+	}
+
+	if cc.listValues[key] == nil {
+		cc.listValues[key] = make([]stateValue, 0)
+	}
+	cc.listValues[key] = append(cc.listValues[key], newVal)
+
+	cc.rcList[key] -= 1 // count as a completed write?
+	cc.version[key] += 1
+}
+
 func (cc *ConsistencyChecker) BeginRead(key string) (int, bool) {
 	if !*checkCorrectness {
 		return 0, false
@@ -214,6 +269,77 @@ func (cc *ConsistencyChecker) CheckReadCorrect(key, value string, wasFound bool,
 			} else {
 				return fmt.Errorf("incorrect value %s; never written to key", val)
 			}
+		}
+		if *checkTtl && val.err == nil && val.definitelyExpiredBy.Before(startTime) {
+			timeDiff := startTime.Sub(val.maybeExpiredBy)
+			return fmt.Errorf("value %s was written, but expired at least %dms ago", value, timeDiff.Milliseconds())
+		}
+	}
+	return nil
+}
+
+func (cc *ConsistencyChecker) BeginCheckSlice(key string) (int, bool) {
+	if !*checkCorrectness {
+		return 0, false
+	}
+	cc.mutex.RLock()
+	defer cc.mutex.RUnlock()
+	return cc.version[key], cc.rcList[key] != 0
+}
+
+// either returns nil or an error
+func (cc *ConsistencyChecker) CheckCheckSliceCorrect(key, value string, wasFound bool, startTime time.Time, initialVersion int, writesPending bool) error {
+	if !*checkCorrectness {
+		return nil
+	}
+
+	cc.mutex.RLock()
+	defer cc.mutex.RUnlock()
+	currentVersion := cc.version[key]
+	if currentVersion != initialVersion || writesPending || cc.rcList[key] != 0 { // should not be concurrently updated
+		logrus.Printf("%d %d %b %d", currentVersion, initialVersion, writesPending, cc.rcList[key])
+		return nil
+	}
+
+	atomic.AddUint64(&cc.ChecksRun, 1) // ok to share this variable btwn reads and list checks?
+
+	now := time.Now()
+	values := cc.listValues[key]
+
+	// not sure if this is necessary
+	if !wasFound {
+		someValueExpired := len(values) == 0
+		valsNotExpired := make([]stateValue, 0)
+		for _, valueInList := range values {
+			if valueInList.value == value && valueInList.maybeExpiredBy.Before(now) {
+				someValueExpired = true
+			} else if valueInList.value == value {
+				valsNotExpired = append(valsNotExpired, valueInList)
+			}
+		}
+		if !someValueExpired {
+			return fmt.Errorf("no value found, but there unexpired potential values: %s", printValues(valsNotExpired))
+		}
+	} else {
+		// see if value is in list
+		found := false
+		val := stateValue{}
+		for _, sv := range cc.listValues[key] {
+			if sv.value == value {
+				found = true
+				val = sv
+				break
+			}
+		}
+		//val, found := cc.values[key][value]
+		if !found {
+			return fmt.Errorf("incorrect value %s; never written to key", val)
+			/*overwrittenVal, found := cc.overwrittenValues[key][value]
+			if found {
+				return fmt.Errorf("incorrect value %s; was overrwritten %dms ago", value, time.Since(overwrittenVal.overwrittenAt).Milliseconds())
+			} else {
+				return fmt.Errorf("incorrect value %s; never written to key", val)
+			}*/
 		}
 		if *checkTtl && val.err == nil && val.definitelyExpiredBy.Before(startTime) {
 			timeDiff := startTime.Sub(val.maybeExpiredBy)

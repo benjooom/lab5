@@ -28,7 +28,8 @@ import (
 // to see how high it can go before erroring.
 //
 // Typical usage for Part D will just be to run:
-//    go run cmd/stress/tester.go --shardmap shardmaps/$file.json
+//
+//	go run cmd/stress/tester.go --shardmap shardmaps/$file.json
 //
 // This will run with a default of 100 get QPS and 30 set QPS. Your servers
 // should be able to handle much more load, but we are not grading on performance
@@ -49,6 +50,8 @@ var (
 	shardMapFile       = flag.String("shardmap", "", "Path to a JSON file which describes the shard map")
 	getQps             = flag.Int("get-qps", 100, "number of Get() calls per second across the cluster")
 	setQps             = flag.Int("set-qps", 30, "number of Set() calls per second across the cluster")
+	sliceCheckQps      = flag.Int("check-slice-qps", 0, "number of CheckSlice() calls per second across the cluster")
+	sliceAppendQps     = flag.Int("append-slice-qps", 0, "number of AppendSlice() calls per second across the cluster")
 	qpsBurst           = flag.Int("qps-burst", 20, "Maximum burst of QPS")
 	duration           = flag.Duration("duration", 60*time.Second, "Duration of the stress test")
 	timeout            = flag.Duration("timeout", 1*time.Second, "Timeout for RPCs sent to the cluster")
@@ -69,12 +72,19 @@ type stressTester struct {
 	errorLogLimiter   *rate.Limiter
 	wg                sync.WaitGroup
 
-	keys            []string
-	gets            uint64
-	getErrs         uint64
-	sets            uint64
-	setErrs         uint64
-	inconsistencies uint64
+	keys               []string
+	listKeys           []string
+	gets               uint64
+	getErrs            uint64
+	sets               uint64
+	setErrs            uint64
+	sliceChecks        uint64
+	sliceCheckErrs     uint64
+	sliceAppends       uint64
+	sliceAppendErrs    uint64
+	inconsistencies    uint64
+	sliceAppendLatency time.Duration
+	sliceCheckLatency  time.Duration
 
 	cc *checker.ConsistencyChecker
 }
@@ -106,6 +116,7 @@ func makeStressTester(kv *kv.Kv) *stressTester {
 		successLogLimiter: rate.NewLimiter(1, 1),
 		errorLogLimiter:   rate.NewLimiter(2, 10),
 		keys:              randomKeys(*numKeys, 10),
+		listKeys:          []string{"alice", "gabe", "ben", "andrew", "dos", "santos", "mehmedovic", "ao"},
 		cc:                checker.MakeConsistencyChecker(),
 	}
 }
@@ -130,7 +141,15 @@ func (st *stressTester) stressLoop(
 		st.sem.Acquire(st.ctx, 1)
 
 		st.wg.Add(1)
-		key := st.keys[rng.Int()%len(st.keys)]
+		key := ""
+		if name == "StressSliceAppends" || name == "StressSliceChecks" {
+			key = st.listKeys[rng.Int()%len(st.listKeys)] // stick to a small number of listKeys
+			//logrus.Print("StressLoop: ", name, " ", key)
+		} else {
+			key = st.keys[rng.Int()%len(st.keys)]
+			//logrus.Print("StressLoop: ", name, " ", key)
+		}
+
 		value := randomString(rand.New(rand.NewSource(time.Now().UnixMicro())), 32)
 		go func() {
 			ctx, cancel := context.WithTimeout(st.ctx, *timeout)
@@ -194,8 +213,68 @@ func (st *stressTester) stressSets() {
 	})
 }
 
+func (st *stressTester) stressSliceChecks() {
+	st.stressLoop("StressSliceChecks", *sliceCheckQps, func(ctx context.Context, key, value string) {
+		startTime := time.Now()
+
+		initialVersion, writesPending := st.cc.BeginCheckSlice(key)
+		wasFound, err := st.kv.CheckList(ctx, key, value)
+		latency := time.Since(startTime)
+
+		atomic.AddUint64(&st.sliceChecks, 1)
+		if err != nil {
+			if st.errorLogLimiter.Allow() {
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).Errorf("check list failed: %q", err)
+			}
+			atomic.AddUint64(&st.getErrs, 1)
+
+		} else {
+			err := st.cc.CheckCheckSliceCorrect(key, value, wasFound, startTime, initialVersion, writesPending)
+			if err != nil && st.errorLogLimiter.Allow() {
+				atomic.AddUint64(&st.inconsistencies, 1)
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).Errorf("get returned wrong answer: %s", err)
+			} else if st.successLogLimiter.Allow() {
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).WithField("latency_us", latency.Microseconds()).Info("[sampled] check list OK")
+			}
+		}
+		st.sliceCheckLatency += latency
+	})
+}
+
+func (st *stressTester) stressSliceAppends() {
+	st.stressLoop("StressSliceAppends", *sliceAppendQps, func(ctx context.Context, key, value string) {
+		startTime := time.Now()
+		initialVersion := st.cc.BeginWrite(key)
+
+		err := st.kv.AppendList(ctx, key, value)
+
+		latency := time.Since(startTime)
+		endTime := time.Now()
+		atomic.AddUint64(&st.sliceAppends, 1)
+		if err != nil {
+			if st.errorLogLimiter.Allow() {
+				logrus.WithField("key", key).Errorf("slice append failed: %q", err)
+			}
+			atomic.AddUint64(&st.setErrs, 1)
+		} else {
+			if st.successLogLimiter.Allow() {
+				logrus.WithField("key", key).WithField("latency_us", latency.Microseconds()).Info("[sampled] slice append OK")
+			}
+		}
+		// new function (may take out TTL info later)
+		st.cc.CompleteAppendSlice(key, value, err, initialVersion, startTime.Add(*ttl), endTime.Add(*ttl))
+		st.sliceAppendLatency += latency
+	})
+}
+
 func (st *stressTester) wait() {
 	st.wg.Wait()
+}
+
+func (st *stressTester) initializeLists() {
+	for _, key := range st.listKeys {
+		st.kv.CreateList(context.Background(), key, 1000*time.Second) // sufficiently high time so it outlives the execution of the stress tester
+	}
 }
 
 func main() {
@@ -212,22 +291,54 @@ func main() {
 
 	tester := makeStressTester(client)
 	start := time.Now()
-	tester.wg.Add(2)
-	go tester.stressGets()
-	go tester.stressSets()
+	//tester.wg.Add(2)
+	tester.initializeLists()
+	if *getQps != 0 {
+		tester.wg.Add(1)
+		go tester.stressGets()
+	}
+	if *setQps != 0 {
+		tester.wg.Add(1)
+		go tester.stressSets()
+	}
+	if *sliceCheckQps != 0 {
+		tester.wg.Add(1)
+		go tester.stressSliceChecks()
+	}
+	if *sliceAppendQps != 0 {
+		tester.wg.Add(1)
+		go tester.stressSliceAppends()
+	}
 	tester.wait()
 	testDuration := time.Since(start)
 
 	gets := atomic.LoadUint64(&tester.gets)
 	sets := atomic.LoadUint64(&tester.sets)
+	sliceChecks := atomic.LoadUint64(&tester.sliceChecks)
+	sliceAppends := atomic.LoadUint64(&tester.sliceAppends)
 	getErrs := atomic.LoadUint64(&tester.getErrs)
 	setErrs := atomic.LoadUint64(&tester.setErrs)
+	sliceAppendErrs := atomic.LoadUint64(&tester.sliceAppendErrs)
+	sliceCheckErrs := atomic.LoadUint64(&tester.sliceCheckErrs)
 	checks := atomic.LoadUint64(&tester.cc.ChecksRun)
 	inconsistencies := atomic.LoadUint64(&tester.inconsistencies)
 	fmt.Println("Stress test completed!")
-	fmt.Printf("Get requests: %d/%d succeeded = %f%% success rate\n", gets-getErrs, gets, 100*float64(gets-getErrs)/float64(gets))
-	fmt.Printf("Set requests: %d/%d succeeded = %f%% success rate\n", sets-setErrs, sets, 100*float64(sets-setErrs)/float64(sets))
-	totalRequests := gets + sets
+	if *getQps != 0 {
+		fmt.Printf("Get requests: %d/%d succeeded = %f%% success rate\n", gets-getErrs, gets, 100*float64(gets-getErrs)/float64(gets))
+	}
+	if *setQps != 0 {
+		fmt.Printf("Set requests: %d/%d succeeded = %f%% success rate\n", sets-setErrs, sets, 100*float64(sets-setErrs)/float64(sets))
+	}
+	if *sliceCheckQps != 0 {
+		fmt.Printf("Slice check requests: %d/%d succeeded = %f%% success rate\n", sliceChecks-sliceCheckErrs, sliceChecks, 100*float64(sliceChecks-sliceCheckErrs)/float64(sliceChecks))
+		fmt.Printf("Average slice check latency: %f us\n", float64(tester.sliceCheckLatency.Microseconds())/float64(sliceChecks))
+	}
+	if *sliceAppendQps != 0 {
+		fmt.Printf("Slice append requests: %d/%d succeeded = %f%% success rate\n", sliceAppends-sliceAppendErrs, sliceAppends, 100*float64(sliceAppends-sliceAppendErrs)/float64(sliceAppends))
+		fmt.Printf("Average slice append latency: %f us\n", float64(tester.sliceAppendLatency.Microseconds())/float64(sliceAppends))
+	}
+	// slice latency
+	totalRequests := gets + sets + sliceChecks + sliceAppends
 	fmt.Printf("Correct responses: %d/%d = %f%%\n", checks-inconsistencies, checks, 100*float64(checks-inconsistencies)/float64(checks))
 	totalQps := float64(totalRequests) / testDuration.Seconds()
 	fmt.Printf("Total requests: %d = %f QPS\n", totalRequests, totalQps)
