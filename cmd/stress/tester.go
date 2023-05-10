@@ -28,7 +28,8 @@ import (
 // to see how high it can go before erroring.
 //
 // Typical usage for Part D will just be to run:
-//    go run cmd/stress/tester.go --shardmap shardmaps/$file.json
+//
+//	go run cmd/stress/tester.go --shardmap shardmaps/$file.json
 //
 // This will run with a default of 100 get QPS and 30 set QPS. Your servers
 // should be able to handle much more load, but we are not grading on performance
@@ -49,6 +50,8 @@ var (
 	shardMapFile       = flag.String("shardmap", "", "Path to a JSON file which describes the shard map")
 	getQps             = flag.Int("get-qps", 100, "number of Get() calls per second across the cluster")
 	setQps             = flag.Int("set-qps", 30, "number of Set() calls per second across the cluster")
+	sliceCheckQps      = flag.Int("check-slice-qps", 0, "number of CheckSlice() calls per second across the cluster")
+	sliceAppendQps     = flag.Int("append-slice-qps", 0, "number of AppendSlice() calls per second across the cluster")
 	qpsBurst           = flag.Int("qps-burst", 20, "Maximum burst of QPS")
 	duration           = flag.Duration("duration", 60*time.Second, "Duration of the stress test")
 	timeout            = flag.Duration("timeout", 1*time.Second, "Timeout for RPCs sent to the cluster")
@@ -74,6 +77,10 @@ type stressTester struct {
 	getErrs         uint64
 	sets            uint64
 	setErrs         uint64
+	sliceChecks     uint64
+	sliceCheckErrs  uint64
+	sliceAppends    uint64
+	sliceAppendErrs uint64
 	inconsistencies uint64
 
 	cc *checker.ConsistencyChecker
@@ -143,6 +150,34 @@ func (st *stressTester) stressLoop(
 	st.wg.Done()
 }
 
+/*func (st *stressTester) stressSliceLoop(
+	name string,
+	qps int,
+	sendReqFn func(ctx context.Context, key, value string),
+) {
+	limiter := rate.NewLimiter(rate.Limit(qps), *qpsBurst)
+	logrus.Infof("Running %s stress test at %d QPS", name, qps)
+
+	start := time.Now()
+	rng := rand.New(rand.NewSource(time.Now().UnixMicro()))
+	for time.Since(start) < *duration {
+		limiter.Wait(st.ctx)
+		st.sem.Acquire(st.ctx, 1)
+
+		st.wg.Add(1)
+		key := st.keys[rng.Int()%len(st.keys)]
+		value := randomString(rand.New(rand.NewSource(time.Now().UnixMicro())), 32)
+		go func() {
+			ctx, cancel := context.WithTimeout(st.ctx, *timeout)
+			sendReqFn(ctx, key, value)
+			cancel()
+			st.sem.Release(1)
+			st.wg.Done()
+		}()
+	}
+	st.wg.Done()
+}*/
+
 func (st *stressTester) stressGets() {
 	st.stressLoop("Get", *getQps, func(ctx context.Context, key, _ string) {
 		startTime := time.Now()
@@ -194,6 +229,58 @@ func (st *stressTester) stressSets() {
 	})
 }
 
+func (st *stressTester) stressSliceChecks() {
+	st.stressLoop("StressSliceChecks", *sliceCheckQps, func(ctx context.Context, key, value string) {
+		startTime := time.Now()
+
+		initialVersion, writesPending := st.cc.BeginCheckSlice(key)
+		wasFound, err := st.kv.CheckList(ctx, key, value)
+		latency := time.Since(startTime)
+
+		atomic.AddUint64(&st.sliceChecks, 1)
+		if err != nil {
+			if st.errorLogLimiter.Allow() {
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).Errorf("check list failed: %q", err)
+			}
+			atomic.AddUint64(&st.getErrs, 1)
+
+		} else {
+			err := st.cc.CheckCheckSliceCorrect(key, value, wasFound, startTime, initialVersion, writesPending)
+			if err != nil && st.errorLogLimiter.Allow() {
+				atomic.AddUint64(&st.inconsistencies, 1)
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).Errorf("get returned wrong answer: %s", err)
+			} else if st.successLogLimiter.Allow() {
+				logrus.WithFields(logrus.Fields{"key": key, "value": value}).WithField("latency_us", latency.Microseconds()).Info("[sampled] check list OK")
+			}
+		}
+	})
+}
+
+func (st *stressTester) stressSliceAppends() {
+	st.stressLoop("StressSliceAppends", *sliceAppendQps, func(ctx context.Context, key, value string) {
+		startTime := time.Now()
+		initialVersion := st.cc.BeginWrite(key)
+
+		err := st.kv.Set(ctx, key, value, *ttl)
+
+		latency := time.Since(startTime)
+		endTime := time.Now()
+		atomic.AddUint64(&st.sliceAppends, 1)
+		if err != nil {
+			if st.errorLogLimiter.Allow() {
+				logrus.WithField("key", key).Errorf("slice append failed: %q", err)
+			}
+			atomic.AddUint64(&st.setErrs, 1)
+		} else {
+			if st.successLogLimiter.Allow() {
+				logrus.WithField("key", key).WithField("latency_us", latency.Microseconds()).Info("[sampled] slice append OK")
+			}
+		}
+		// write new func
+		st.cc.CompleteAppendSlice(key, value, err, initialVersion, startTime.Add(*ttl), endTime.Add(*ttl))
+	})
+}
+
 func (st *stressTester) wait() {
 	st.wg.Wait()
 }
@@ -215,18 +302,26 @@ func main() {
 	tester.wg.Add(2)
 	go tester.stressGets()
 	go tester.stressSets()
+	go tester.stressSliceChecks()
+	go tester.stressSliceAppends()
 	tester.wait()
 	testDuration := time.Since(start)
 
 	gets := atomic.LoadUint64(&tester.gets)
 	sets := atomic.LoadUint64(&tester.sets)
+	sliceChecks := atomic.LoadUint64(&tester.sliceChecks)
+	sliceAppends := atomic.LoadUint64(&tester.sliceAppends)
 	getErrs := atomic.LoadUint64(&tester.getErrs)
 	setErrs := atomic.LoadUint64(&tester.setErrs)
+	sliceAppendErrs := atomic.LoadUint64(&tester.sliceAppendErrs)
+	sliceCheckErrs := atomic.LoadUint64(&tester.sliceCheckErrs)
 	checks := atomic.LoadUint64(&tester.cc.ChecksRun)
 	inconsistencies := atomic.LoadUint64(&tester.inconsistencies)
 	fmt.Println("Stress test completed!")
 	fmt.Printf("Get requests: %d/%d succeeded = %f%% success rate\n", gets-getErrs, gets, 100*float64(gets-getErrs)/float64(gets))
 	fmt.Printf("Set requests: %d/%d succeeded = %f%% success rate\n", sets-setErrs, sets, 100*float64(sets-setErrs)/float64(sets))
+	fmt.Printf("Slice check requests: %d/%d succeeded = %f%% success rate\n", sliceChecks-sliceCheckErrs, sliceChecks, 100*float64(sliceChecks-sliceCheckErrs)/float64(sliceChecks))
+	fmt.Printf("Slice append requests: %d/%d succeeded = %f%% success rate\n", sets-sliceAppendErrs, sets, 100*float64(sets-sliceAppendErrs)/float64(sliceAppends))
 	totalRequests := gets + sets
 	fmt.Printf("Correct responses: %d/%d = %f%%\n", checks-inconsistencies, checks, 100*float64(checks-inconsistencies)/float64(checks))
 	totalQps := float64(totalRequests) / testDuration.Seconds()
