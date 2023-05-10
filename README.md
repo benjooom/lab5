@@ -47,8 +47,9 @@ cd into kv/test/ and run go execute all related test (client-side, server-side, 
 ### Alice (ava26):
 - Wrote MultiSet client and server code, proto modifications
 - Wrote MultiSet test cases (unit and integration), wrote corresponding write-up
-- Modified stress tester to run queries using list and sorted set
+- Modified stress tester, adding new flags and functions, to run queries using list and sorted set
 - Compared latency for various cases with stress tester
+- Wrote MultiSet portion of the write-up, added generated graphs, and helped write other sections (relevant work, abstract, conclusion, etc.) 
 
 ### Ben (bm746):
 - Learned how to use protoc to manipulate and generate proto files.
