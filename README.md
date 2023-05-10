@@ -20,6 +20,8 @@ List, Set, and SortedSet...
 
 To the zoo LOL!
 
+Run command to 
+
 ## Testing
 
 Run xyz command...
@@ -30,7 +32,11 @@ INSERT: Google Drive Link
 
 ## Group Work
 
-### Alice ():
+### Alice (ava26):
+- Wrote MultiSet client and server code, proto modifications
+- Wrote MultiSet test cases (unit and integration), wrote corresponding write-up
+- Modified stress tester to run queries using list and sorted set
+- Compared latency for various cases with stress tester
 
 ### Ben ():
 
