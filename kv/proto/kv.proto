@@ -42,8 +42,14 @@ message GetShardContentsRequest {
 
 message GetShardValue {
 	string key = 1;
-	string value = 2;
-	int64 ttl_ms_remaining = 3;
+	string string_value = 2;
+	repeated string list_value = 3;
+	repeated string set_value = 4;
+	repeated string sorted_set_value = 5;
+	int64 string_ttl_ms_remaining = 6;
+	int64 list_ttl_ms_remaining = 7;
+	int64 set_ttl_ms_remaining = 8;
+	int64 sorted_set_ttl_ms_remaining = 9;
 }
 message GetShardContentsResponse {
 	repeated GetShardValue values = 1;

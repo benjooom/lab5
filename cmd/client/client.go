@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"strconv"
 	"time"
@@ -25,7 +26,7 @@ var (
 )
 
 func usage() {
-	logrus.Fatal("Usage: client.go [get|set|delete] key [value] [ttl]")
+	logrus.Fatal("Usage: client.go [get|set|delete|getList|setList|getSet|setSet] key [value] [ttl]")
 }
 
 func main() {
@@ -78,6 +79,65 @@ func main() {
 		if err != nil {
 			logrus.WithField("key", key).Errorf("error deleting value for key: %q", err)
 		}
+	case "getList":
+		value, err := client.GetList(ctx, key)
+		if err != nil {
+			logrus.WithField("key", key).Errorf("error getting value for key: %q", err)
+		} else {
+			// Convert []string to JSON string
+			jsonVal, err := json.Marshal(value)
+			if err != nil {
+				logrus.Fatalf("expected list value for value: %q", err)
+			}
+			println(string(jsonVal))
+		}
+	case "setList":
+		if len(args) < 4 {
+			usage()
+		}
+		value := args[2]
+		// Convert value of type "['hi','hello']" to []string
+		convertedVal := make([]string, 0)
+		err := json.Unmarshal([]byte(value), &convertedVal)
+		if err != nil {
+			logrus.Fatalf("expected list value for value: %q", err)
+		}
+
+		ttlMs, err := strconv.ParseInt(args[3], 10, 64)
+		if err != nil {
+			logrus.Fatalf("expected int value for ttlMs: %q", err)
+		}
+		client.SetList(ctx, key, convertedVal, time.Duration(ttlMs)*time.Millisecond)
+
+	case "getSet":
+		value, err := client.GetSet(ctx, key)
+		if err != nil {
+			logrus.WithField("key", key).Errorf("error getting value for key: %q", err)
+		} else {
+			// Convert []string to JSON string
+			jsonVal, err := json.Marshal(value)
+			if err != nil {
+				logrus.Fatalf("expected list value for value: %q", err)
+			}
+			println(string(jsonVal))
+		}
+	case "setSet":
+		if len(args) < 4 {
+			usage()
+		}
+		value := args[2]
+		// Convert value of type "['hi','hello']" to []string
+		convertedVal := make([]string, 0)
+		err := json.Unmarshal([]byte(value), &convertedVal)
+		if err != nil {
+			logrus.Fatalf("expected list value for value: %q", err)
+		}
+
+		ttlMs, err := strconv.ParseInt(args[3], 10, 64)
+		if err != nil {
+			logrus.Fatalf("expected int value for ttlMs: %q", err)
+		}
+		client.SetSet(ctx, key, convertedVal, time.Duration(ttlMs)*time.Millisecond)
 	default:
 		usage()
 	}

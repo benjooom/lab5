@@ -3,21 +3,24 @@ ESTIMATE of time to complete assignment: 30 hours
       Time     Time
 Date  Started  Spent Work completed
 ----  -------  ----  --------------
-4/22  16:00    1:00  Meet with group to discuss project and progress.
+4/22  16:00    2:00  Meet with group to discuss project and progress.
 
+5/06  15:00    3:00  Meet with group to talk about progress and shard warmup implementation.
 
-5/06  15:00    2:00  Meet with group to
+5/07  14:00    4:00  Worked on implementing streaming.
 
-5/07  14:00    2:00  Meet with group to
+5/08  13:00    3:00  Worked on testing copying with streaming.
+
+5/09  16:00    8:00  Worked on implementing get/set entire set/list RPCs. tested
+                     system in live deployment between my machine and Alice's.
+
+5/10   9:00    4:00  Finished implementing get/set entire set/list RPCs.
+
+5/10  13:00    5:30  Finished implementing shard copying for all datatypes. Completed final test of
+                     system in live deployment between my machine and Alice's. Worked on final report.
                ----
-              14:00  TOTAL time spent
+              29:30  TOTAL time spent
 
-Besides Alice and Gabe, my group members, and coursestaff I did not speak to anyone for more than 10 minutes.
+Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
 
-The most difficult part of the assignment was the learning curve. I was tasked with working on part C in my group
-and efficiently handling shard map updates (copying shard contents as well). I had to first understand part A, which Gabe
-completed, so that I could make adjustments to his implementations that would be compatible with part C. Debugging part C
-was a bit tricky because there were multiple locks involved in my implementation. I had to fix a few race conditions. Once
-we passed all of the tests, as a group we stress tested and found a bug with TTLs. It ultimately ended up being a time unit
-conversion issue where we were using both microseconds and milliseconds. However, this stumped us for quite a while because
-all the debugging showed that our server implementation was solid.
+The most difficult part of the assignment was

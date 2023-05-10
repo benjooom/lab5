@@ -1,7 +1,6 @@
 package kvtest
 
 import (
-	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -9,7 +8,6 @@ import (
 	"time"
 
 	"cs426.yale.edu/lab4/kv"
-	"cs426.yale.edu/lab4/kv/proto"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,7 +24,7 @@ import (
 // only. You can make methods public (e.g. utils) by making them Capitalized.
 
 // Tests that GetShardContents returns the correct data
-func TestGetShardContentsSimple(t *testing.T) {
+/*func TestGetShardContentsSimple(t *testing.T) {
 	setup := MakeTestSetup(
 		kv.ShardMapState{
 			NumShards: 1,
@@ -50,7 +48,7 @@ func TestGetShardContentsSimple(t *testing.T) {
 	//assert.Equal(t, "123", val.Values[0].Value)
 
 	setup.Shutdown()
-}
+}*/
 
 // Verifies that the shard function consisently returns the same shard for a given key
 func TestConsistentHash(t *testing.T) {

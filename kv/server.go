@@ -317,7 +317,6 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 
 			// Get the shard contents from the owner
 			stream, err := clientMap[owners[index]].GetShardContents(context.Background(), &proto.GetShardContentsRequest{Shard: int32(shard)})
-			fmt.Printf("Stream: %v, err: %v\n", stream, err)
 			if err != nil {
 				continue
 			}
@@ -335,18 +334,33 @@ func (server *KvServerImpl) copyShardData(toAdd []int) {
 						return
 					}
 
-					stripe := server.GetStringDB().stripes[shard]
-					stripe.mutex.Lock()
+					StringStripe := server.GetStringDB().stripes[shard]
+					SetStripe := server.GetSetDB().stripes[shard]
+					ListStripe := server.GetListDB().stripes[shard]
+					//SortedSetStripe := server.GetSortedSetDB().stripes[shard]
+					StringStripe.mutex.Lock()
+					SetStripe.mutex.Lock()
+					ListStripe.mutex.Lock()
+					//SortedSetStripe.mutex.Lock()
 
 					// Wipe out the previous data in the stripe
-					stripe.state = make(map[string]Entry)
+					StringStripe.state = make(map[string]Entry)
 
 					//Add all the new data to the stripe
 					for i := range resp.Values {
 						fmt.Printf("Adding %v to stripe\n", resp.Values[i].Key)
-						stripe.state[resp.Values[i].Key] = String{resp.Values[i].Value, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].TtlMsRemaining))}
+						StringStripe.state[resp.Values[i].Key] = String{resp.Values[i].StringValue, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].StringTtlMsRemaining))}
+						// Create map[string]bool where keys are the set values and values are true
+						set := make(map[string]bool)
+						for j := range resp.Values[i].SetValue {
+							set[resp.Values[i].SetValue[j]] = true
+						}
+						SetStripe.state[resp.Values[i].Key] = Set{set, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].SetTtlMsRemaining))}
+						ListStripe.state[resp.Values[i].Key] = List{resp.Values[i].ListValue, time.Now().Add(time.Millisecond * time.Duration(resp.Values[i].ListTtlMsRemaining))}
 					}
-					stripe.mutex.Unlock()
+					StringStripe.mutex.Unlock()
+					SetStripe.mutex.Unlock()
+					ListStripe.mutex.Unlock()
 				}
 			}(stream, done)
 
@@ -438,6 +452,7 @@ func (server *KvServerImpl) shardMapListenLoop() {
 			atomic.AddInt32(&server.GetStringDB().killed, 1)
 			return
 		case <-listener:
+			fmt.Printf("UPDATE!")
 			server.handleShardMapUpdate()
 		}
 	}
@@ -740,19 +755,145 @@ func (server *KvServerImpl) GetShardContents(
 
 	// Initialize necessary variables
 	values := make([]*proto.GetShardValue, 1)
-	stripe := server.GetStringDB().stripes[int(request.Shard)]
-	fmt.Printf("ENTERED GET SHARD CONTENTS\n")
+	StringStripe := server.GetStringDB().stripes[int(request.Shard)]
+	ListStripe := server.GetListDB().stripes[int(request.Shard)]
+	SetStripe := server.GetSetDB().stripes[int(request.Shard)]
 
-	stripe.mutex.Lock()
-	for key := range stripe.state {
+	StringStripe.mutex.Lock()
+	ListStripe.mutex.Lock()
+	SetStripe.mutex.Lock()
+	// Get a set of keys in StringStripe state, ListStripe state, and SetStripe state
+	AllKeys := make(map[string]bool)
+	for key := range StringStripe.state {
+		AllKeys[key] = true
+	}
+	for key := range ListStripe.state {
+		AllKeys[key] = true
+	}
+	for key := range SetStripe.state {
+		AllKeys[key] = true
+	}
+
+	for key := range AllKeys {
 		wg.Add(1)
-		go func(key string, value string, expiry time.Time) {
+		// Get the value of the key in StringStripe state
+		var StringValue string
+		var ListValue []string
+		var SetValue map[string]bool
+		var StringExpiry time.Time
+		var ListExpiry time.Time
+		var SetExpiry time.Time
+
+		// Check that the key is in the stripe
+		_, ok := StringStripe.state[key]
+		if ok {
+			StringValue = StringStripe.state[key].(String).value
+			StringExpiry = StringStripe.state[key].(String).ttl
+			// Check if the key is in the other stripes
+			_, ok := ListStripe.state[key]
+			if ok {
+				ListValue = ListStripe.state[key].(List).value
+				ListExpiry = ListStripe.state[key].(List).ttl
+				_, ok := SetStripe.state[key]
+				if ok {
+					SetValue = SetStripe.state[key].(Set).value
+					SetExpiry = SetStripe.state[key].(Set).ttl
+				} else {
+					SetExpiry = time.Now()
+					SetValue = make(map[string]bool)
+				}
+			} else {
+				ListExpiry = time.Now()
+				ListValue = []string{}
+				_, ok := SetStripe.state[key]
+				if ok {
+					SetValue = SetStripe.state[key].(Set).value
+					SetExpiry = SetStripe.state[key].(Set).ttl
+				} else {
+					SetExpiry = time.Now()
+					SetValue = make(map[string]bool)
+				}
+			}
+		} else {
+			StringExpiry = time.Now()
+			StringValue = ""
+			_, ok := ListStripe.state[key]
+			if ok {
+				ListValue = ListStripe.state[key].(List).value
+				ListExpiry = ListStripe.state[key].(List).ttl
+				_, ok := SetStripe.state[key]
+				if ok {
+					SetValue = SetStripe.state[key].(Set).value
+					SetExpiry = SetStripe.state[key].(Set).ttl
+				} else {
+					SetExpiry = time.Now()
+					SetValue = make(map[string]bool)
+				}
+			} else {
+				ListExpiry = time.Now()
+				ListValue = []string{}
+				_, ok := SetStripe.state[key]
+				if ok {
+					SetValue = SetStripe.state[key].(Set).value
+					SetExpiry = SetStripe.state[key].(Set).ttl
+				} else {
+					SetExpiry = time.Now()
+					SetValue = make(map[string]bool)
+				}
+			}
+		}
+
+		SortedSetValue := sortedset.SortedSet{}
+		SortedSetExpiry := time.Now()
+
+		/*StringValue := StringStripe.state[key].(String).value
+		StringExpiry := StringStripe.state[key].(String).ttl
+		ListValue := ListStripe.state[key].(List).value
+		if ListValue == nil {
+			ListValue = []string{}
+			ListExpiry = time.Now()
+		} else {
+			ListExpiry = ListStripe.state[key].(List).ttl
+		}
+		SetValue := SetStripe.state[key].(Set).value
+		if SetValue == nil {
+			SetValue = make(map[string]bool)
+			SetExpiry = time.Now()
+		} else {
+			SetExpiry = SetStripe.state[key].(Set).ttl
+		}
+		SortedSetValue := sortedset.SortedSet{}
+		SortedSetExpiry := time.Now()*/
+
+		go func(key string,
+			StringValue string,
+			ListValue []string,
+			SetValue map[string]bool,
+			SortedSetValue sortedset.SortedSet,
+			StringExpiry time.Time,
+			ListExpiry time.Time,
+			SetExpiry time.Time,
+			SortedSetExpiry time.Time) {
+
 			defer wg.Done()
-			fmt.Printf("!!!!GetShardContents(): key: %s, value: %s, expiry: %s\n", key, value, expiry)
+			fmt.Printf("Sending ShardContents(): key: %v, StringValue: %v, ListValue: %v, SetValue: %v, SortedSetValue: %v, StringExpiry: %s, ListExpiry: %s, SetExpiry: %s, SortedSetExpiry: %s\n", key, StringValue, ListValue, SetValue, SortedSetValue, StringExpiry, ListExpiry, SetExpiry, SortedSetExpiry)
+
+			// Get list of SetValue keys
+			setKeys := make([]string, 0)
+			for k := range SetValue {
+				setKeys = append(setKeys, k)
+			}
+
 			values[0] = &proto.GetShardValue{
-				Key:            key,
-				Value:          value,
-				TtlMsRemaining: time.Until(expiry).Milliseconds(),
+				Key:                     key,
+				StringValue:             StringValue,
+				ListValue:               ListValue,
+				SetValue:                setKeys,
+				SortedSetValue:          nil,
+				StringTtlMsRemaining:    time.Until(StringExpiry).Milliseconds(),
+				ListTtlMsRemaining:      time.Until(ListExpiry).Milliseconds(),
+				SetTtlMsRemaining:       time.Until(SetExpiry).Milliseconds(),
+				SortedSetTtlMsRemaining: time.Until(SortedSetExpiry).Milliseconds(),
 			}
 			resp := &proto.GetShardContentsResponse{
 				Values: values,
@@ -763,9 +904,20 @@ func (server *KvServerImpl) GetShardContents(
 					logrus.Fields{"node": server.nodeName, "key": key},
 				).Error("error sending response")
 			}
-		}(key, stripe.state[key].GetValue().(string), stripe.state[key].GetExpiry())
+		}(key,
+			StringValue,
+			ListValue,
+			SetValue,
+			SortedSetValue,
+			StringExpiry,
+			ListExpiry,
+			SetExpiry,
+			SortedSetExpiry,
+		)
 	}
-	stripe.mutex.Unlock()
+	StringStripe.mutex.Unlock()
+	ListStripe.mutex.Unlock()
+	SetStripe.mutex.Unlock()
 
 	wg.Wait()
 	return nil
