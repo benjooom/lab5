@@ -25,9 +25,7 @@ This key-value store has implemented various data types.
 
 ### Deployment
 
-INSERT: how to change the IPs to run on your computers!?
-
-Run command to
+Deploying our system on active and distributed nodes in a network is pretty easy. You simply edit the shard maps in the shardmaps folder to assign each node the correct IP. A computer's/server's IP address can be obtained by running `ifconfig` in shell. Once you write your shard map to define the system specifications and node/IP pairs, run the system on each computer/server as the node which holds its IP in the shard map. For example, if my computer's IP address is recorded as belonging to node 1 in the shard map, I would run: `go run cmd/server/server.go --shardmap shardmaps/[shardmap_name.json] --node n1`.
 
 ## Testing
 
@@ -40,7 +38,7 @@ cd into kv/test/ and run go execute all related test (client-side, server-side, 
 
 ## Demo
 
-1. In the zip you will find a video demonstrating a deployment of our implementation of a sharded key/value store. The test case is defined by the "test-2-node.json" shard map. There are two nodes which both share a single shard. On the right computer node 1 runs, while on the left one node 2 runs. The stress tester is then activated. After some successfuly requests, we shut down node 1 and observe that the stress tester is unable to reach it. Then we reactivate node 1, which does a shard migration (as we can see in the log) and starts usccesfully serving requests again. We know both shards have reached a state of consesus because there are no errors present in the stress tester after a few seconds.
+1. In the zip you will find a video demonstrating a deployment of our implementation of a sharded key/value store. The test case is defined by the `test-2-node.json` shard map. To deploy a system on active nodes, you simply input the correct IP address for each node in the map. You can obtain a computer's IP by running `ifconfig`. There are two nodes which both share a single shard. On the right computer node 1 runs, while on the left one node 2 runs. The stress tester is then activated. After some successful requests, we shut down node 1 and observe that the stress tester is unable to reach it. Then we reactivate node 1, which does a shard migration (as we can see in the log) and starts usccesfully serving requests again. We know both shards have reached a state of consesus because there are no errors present in the stress tester after a few seconds.
 
 2. In the zip you will find a video demonstrating active shard migration of our new data types. In the demo, there are two running nodes which both host a single shard. We show that you are able to get and set strings, lists of strings, and sets of strings. Additionally, the demo shows active shard migration and copying of data (which now uses grpc streams and warmup) after nodes are shut down and then brought back up. The node that copies data to the shard logs that it is "Adding [key] to stripe," while the node sending the key/value pairs shows a list of the content it sends through its stream (e.g. shown in video: "Sending ShardContents(): key: lina, StringValue: , ListValue: [], SetValue: map[jack:true linda:true], SortedSetValue: {<nil> <nil> 0 0 map[]}, StringExpiry: 2023-05-10 15:00:05.195666 -0400 EDT m=+128.535055231, ListExpiry: 2023-05-10 15:00:05.195667 -0400 EDT m=+128.535055352, SetExpiry: 2023-05-10 17:46:27.23223 -0400 EDT m=+10110.576718739, SortedSetExpiry: 2023-05-10 15:00:05.195667 -0400 EDT m=+128.535055586").
 
