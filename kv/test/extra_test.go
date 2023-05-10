@@ -170,12 +170,12 @@ func TestClientTimeout(t *testing.T) {
 	assert.Nil(t, err)
 	// Sleep for 1 second to ensure that the key expires
 	time.Sleep(1 * time.Second)
-	_, success, err := setup.Get("alice")
+	_, success, _ := setup.Get("alice")
 	assert.False(t, success)
 
 	// Set a new key
 	err1 := setup.Set("gabe", "val", 1000*time.Millisecond)
-	_, success, err = setup.Get("gabe")
+	_, success, _ = setup.Get("gabe")
 	err2 := setup.Set("yang", "val", 1000*time.Millisecond)
 	assert.Nil(t, err1)
 	assert.Nil(t, err2)
@@ -185,10 +185,10 @@ func TestClientTimeout(t *testing.T) {
 
 	// Wait til the key expires
 	time.Sleep(1 * time.Second)
-	_, success, err = setup.Get("gabe")
+	_, success, _ = setup.Get("gabe")
 	assert.False(t, success)
 
-	_, success, err = setup.Get("yang")
+	_, success, _ = setup.Get("yang")
 	assert.False(t, success)
 
 	setup.Shutdown()
@@ -200,7 +200,7 @@ func TestMultiSetServerBasicUnsharded(t *testing.T) {
 	RunTestWith(t, RunMultiSetBasic, MakeTestSetup(MakeBasicOneShard()))
 }
 
-func TestServerMultiSetMultiShardSingleNode(t *testing.T) {
+func TestMultiSetServerMultiShardSingleNode(t *testing.T) {
 	// Runs the basic test on a single node setup,
 	// but with multiple shards assigned. This shouldn't
 	// be functionally much different from a single node
@@ -212,7 +212,7 @@ func TestServerMultiSetMultiShardSingleNode(t *testing.T) {
 	})
 }
 
-func TestServerMultiSetBigMultiShardSingleNode(t *testing.T) {
+func TestMultiSetServerBigMultiShardSingleNode(t *testing.T) {
 	// Runs the basic test on a single node setup,
 	// but with multiple shards assigned. This shouldn't
 	// be functionally much different from a single node
@@ -301,7 +301,7 @@ func RunMultiSetBasicBig(t *testing.T, setup *TestSetup) {
 }
 
 // helper for two shards both on one node
-func TestServerMultiSetRestartShardCopy(t *testing.T) {
+func TestMultiSetServerRestartShardCopy(t *testing.T) {
 	// Tests that your server copies data at startup as well, not just
 	// shard movements after it is running.
 	//
@@ -337,7 +337,7 @@ func TestServerMultiSetRestartShardCopy(t *testing.T) {
 	setup.Shutdown()
 }
 
-func TestClientMultiSetSingleNode(t *testing.T) {
+func TestMultiSetClientSingleNode(t *testing.T) {
 	// Similar to TestClientGetSingleNode: one node, one shard,
 	// testing that Set/Delete RPCs are sent.
 	setup := MakeTestSetupWithoutServers(MakeBasicOneShard())
@@ -358,7 +358,7 @@ func TestClientMultiSetSingleNode(t *testing.T) {
 	assert.Equal(t, 3, setup.clientPool.GetRequestsSent("n1"))
 }
 
-func TestClientMultiSetMultiNode(t *testing.T) {
+func TestMultiSetClientMultiNode(t *testing.T) {
 	// Tests fan-out of Set and Delete calls. If multiple nodes
 	// host the same shard, your client logic must send the RPCs
 	// to all nodes instead of just one.
@@ -387,7 +387,7 @@ func TestClientMultiSetMultiNode(t *testing.T) {
 	assert.Equal(t, 2, setup.clientPool.GetRequestsSent("n2"))
 }
 
-func TestIntegrationMultiSetBasic(t *testing.T) {
+func TestMultiSetIntegrationBasic(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	_, err := setup.MultiSet([]string{"abc", "def", "ghi"}, []string{"123", "jkl", "mno"}, 10*time.Second)
@@ -404,7 +404,7 @@ func TestIntegrationMultiSetBasic(t *testing.T) {
 	setup.Shutdown()
 }
 
-func TestIntegrationMultiSetConcurrent(t *testing.T) {
+func TestMultiSetIntegrationConcurrent(t *testing.T) {
 	setup := MakeTestSetup(MakeFourNodesWithFiveShards())
 
 	const numGoros = 30

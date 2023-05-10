@@ -244,7 +244,7 @@ func TestListPopNonExistent(t *testing.T) {
 	assert.Equal(t, "", value)
 }
 
-func TestGetRangeBasic(t *testing.T) {
+func TestSortedSetGetRangeBasic(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -275,7 +275,7 @@ func TestGetRangeBasic(t *testing.T) {
 
 }
 
-func TestGetRangeComplex(t *testing.T) {
+func TestSortedSetGetRangeComplex(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -313,7 +313,7 @@ func TestGetRangeComplex(t *testing.T) {
 
 }
 
-func TestGetRangeEmpty(t *testing.T) {
+func TestSortedSetGetRangeEmpty(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -429,7 +429,7 @@ func TestSortedSetTtl(t *testing.T) {
 }
 
 // Test that we can set an entire list and then get it back
-func TestSetList(t *testing.T) {
+func TestListGetSet(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Set the list
@@ -457,7 +457,7 @@ func TestSetSet(t *testing.T) {
 }
 
 // Test that we can pop off the first element of a list
-func TestPopList(t *testing.T) {
+func TestListGetSetWithPop(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Set the list
