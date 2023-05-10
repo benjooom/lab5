@@ -5,6 +5,8 @@ Date  Started  Spent Work completed
 ----  -------  ----  --------------
 4/22  16:00    2:00  Meet with group to discuss project and progress.
 
+4/23  16:00    1:00  Thought about conceptual implementation of shard warmup and CAS.
+
 5/06  15:00    3:00  Meet with group to talk about progress and shard warmup implementation.
 
 5/07  14:00    4:00  Worked on implementing streaming.
@@ -19,7 +21,7 @@ Date  Started  Spent Work completed
 5/10  13:00    5:30  Finished implementing shard copying for all datatypes. Completed final test of
                      system in live deployment between my machine and Alice's. Worked on final report.
                ----
-              29:30  TOTAL time spent
+              30:30  TOTAL time spent
 
 Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
 
