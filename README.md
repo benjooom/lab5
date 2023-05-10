@@ -1,6 +1,8 @@
 # Key-Value Store
 
-Description
+Key-value stores are a fundamental building block in modern distributed systems, providing a simple and efficient way to store and retrieve data. In recent years, the popularity of key-value stores has increased significantly due to their ability to scale horizontally, tolerate failures, and support high-performance read and write operations.
+
+The repository showcases our implementation of a Redis-like key-value store.
 
 ## Implementation Details
 
@@ -29,7 +31,7 @@ Run command to
 
 ## Testing
 
-cd into kv/test/ and run go test
+cd into kv/test/ and run go execute all related test (client-side, server-side, integration)
 1. go test -run=TestList
 2. go test -run=TestSet
 3. go test -run=TestSortedSet
