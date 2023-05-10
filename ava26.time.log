@@ -10,7 +10,9 @@ Date  Started  Spent Work completed
 05/05  2:20pm  0:30  Setting up MultiSet client
 05/06  3:00pm  2:30  Wrote MultiSet client code and tested server
 05/06  8:00pm  3:30  Wrote MultiSet client and integration tests and fixed slight client bug
+05/07 10:00am  0:30  Started writing the section of the write-up focused on MultiSet
+05/09  4:30pm  0:30  Added to MultiSet section and thought about MultiSet edge cases
                ----
               00:00  TOTAL time spent
 
-Outside of my group and Xiao, the only outside resource I consulted was this example of how to sort Go maps using built-in Go functions. https://www.geeksforgeeks.org/how-to-sort-golang-map-by-keys-or-values/#
+I only worked with my group and Xiao.
