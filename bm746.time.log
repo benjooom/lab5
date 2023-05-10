@@ -23,4 +23,12 @@ Date  Started  Spent Work completed
 
 Besides Alice and Gabe, my group members, I did not speak to anyone for more than 10 minutes.
 
-The most difficult part of the assignment was
+The most difficult part of the assignment was figuring out streaming and how to test our implementation of streaming.
+I spent a lot of time trying to figure out how to mock streaming so that it works with the unittests. Unfortunately,
+after spending hours and failing, we decided our efforts would be better spent elsewhere. Hence, I tested the shard migration and
+streaming by running the system on my machine and manually calling get, set, getList, getSet, setList, and setSet. Additionally,
+we spent a lot of time trying to deploy our system on the Zoo. However, due to encoding issues, we were unable to get it to work.
+Given that the Zoo is a restrectited setting that doesn't allow students to install their own software, we decided that it was not
+worth the time. Instead we deployed our system between two of our own computers successfully. I also spent some time adding get/set
+entire set/list RPCs to the system. This was not too difficult. Finally, we spent a lot of time working on the final report, making
+sure it was clear, concise, and informative.
