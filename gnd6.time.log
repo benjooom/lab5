@@ -27,9 +27,19 @@ Date  Started  Spent Work completed
 
 05/07 9:30am   2:00  Implemented more complex tests. Realized TTLs weren't working and fixed them throughout all functions.
 
+05/10 2:00pm   3:00  Added integration tests for new data types. Fixed bugs in the testing suite. Updated README. Finalized writeup.
                ----
-               26:00  TOTAL time spent
+               29:00  TOTAL time spent
 
-I did not discuss this assignment with anyone besides the Teaching Staff (Xiao).
+I did not discuss this assignment with anyone.
 
-
+This assignment had many challenges along the way. My first obstacle was figuring out how to use inheritance in Golang.
+We wanted to have a datastore that could store different types of data (string, slice, map, etc).
+However, it was extremely difficult to learn how to use interfaces in Golang in a way that allowed us
+to have a single datastore that could store different types of data. I spent a lot of time researching
+while doing trial and error until the compiler finally let me compile my code.
+Another hurdle was figuring out how to use protobuf and protoc to modify the protocol. At first it seemed
+extremely intimidating, but after reading the documentation from previous labs and watching videos online,
+I was able to create all of the protocols that our team used in the expanded version of the key value store.
+The most challenging part was probably setting up the testing suite to be compatiable with the new functions. There were
+various layers of abstraction and thus required the creation of nearly 5 testing methods to make 1 new rpc work.
