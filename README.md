@@ -23,7 +23,7 @@ This key-value store has implemented various data types.
 - Compare-And-Swap:
   - Gaurantees: will only update the key's value if the present key matches the expected key.
 
-### Deployment
+## Deployment
 
 Deploying our system on active and distributed nodes in a network is pretty easy. You simply edit the shard maps in the shardmaps folder to assign each node the correct IP. A computer's/server's IP address can be obtained by running `ifconfig` in shell. Once you write your shard map to define the system specifications and node/IP pairs, run the system on each computer/server as the node which holds its IP in the shard map. For example, if my computer's IP address is recorded as belonging to node 1 in the shard map, I would run: `go run cmd/server/server.go --shardmap shardmaps/[shardmap_name.json] --node n1`.
 
