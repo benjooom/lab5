@@ -8,10 +8,10 @@ Description
 
 This key-value store has implemented various data types.
 
-1. (String): The original key-value store implementation was a key to value
-2. (List): xyz
-3. (Set): xyz
-4. (SortedSet): xyz
+1. (String): The original key-value store implementation was a key to value.
+2. (List): Keeps a list of string values in chronological order. Implemented using a slice.
+3. (Set): Keeps unique values in a set. Implemented using a map.
+4. (SortedSet): Maintains unique values sorted based on supplied rank.
 
 ### New APIs
 
@@ -23,20 +23,18 @@ This key-value store has implemented various data types.
 
 ### Deployment
 
-cd into kv/test/ and run go test
-1. go test -run=TestList
-2. go test -run=TestSet
-3. go test -run=TestSortedSet
-4. go test -run=TestMultiSet
-5. go test -run=TestCAS
-
 INSERT: how to change the IPs to run on your computers!?
 
 Run command to 
 
 ## Testing
 
-INSERT: how to run the testing script
+cd into kv/test/ and run go test
+1. go test -run=TestList
+2. go test -run=TestSet
+3. go test -run=TestSortedSet
+4. go test -run=TestMultiSet
+5. go test -run=TestCAS
 
 ## Demo
 
