@@ -427,3 +427,50 @@ func TestSortedSetTtl(t *testing.T) {
 	assert.Error(t, err)
 
 }
+
+// Test that we can set an entire list and then get it back
+func TestSetList(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Set the list
+	err := setup.SetList("gnd6", []string{"alice", "bob", "charlie"}, 5*time.Second)
+	assert.Nil(t, err)
+
+	// Get the list
+	values, err := setup.GetList("gnd6")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, values)
+}
+
+// Test that we can set an entire set and then get it back
+func TestSetSet(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Set the set
+	err := setup.SetSet("gnd6", []string{"alice", "bob", "charlie", "charlie"}, 5*time.Second)
+	assert.Nil(t, err)
+
+	// Get the set
+	values, err := setup.GetSet("gnd6")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"alice", "bob", "charlie"}, values)
+}
+
+// Test that we can pop off the first element of a list
+func TestPopList(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Set the list
+	err := setup.SetList("gnd6", []string{"alice", "bob", "charlie"}, 5*time.Second)
+	assert.Nil(t, err)
+
+	// Pop the first element
+	value, err := setup.PopList("gnd6")
+	assert.Nil(t, err)
+	assert.Equal(t, "alice", value)
+
+	// Get the list
+	values, err := setup.GetList("gnd6")
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"bob", "charlie"}, values)
+}

@@ -129,7 +129,6 @@ func (kv *Kv) Set(ctx context.Context, key string, value string, ttl time.Durati
 	wg.Wait()
 
 	return err
-
 }
 
 //NEW LAB5 FUNCTION: MULTISET
@@ -837,4 +836,163 @@ func (kv *Kv) GetRange(ctx context.Context, key string, start int64, end int64) 
 	}
 	return nil, err
 
+}
+
+func (kv *Kv) GetSet(ctx context.Context, key string) ([]string, error) {
+
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return nil, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.GetSet(ctx, &proto.GetSetRequest{Key: key})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Value, nil
+	}
+	return nil, err
+}
+
+func (kv *Kv) GetList(ctx context.Context, key string) ([]string, error) {
+	possible_nodes := kv.shardMap.NodesForShard(GetShardForKey(key, kv.shardMap.NumShards()))
+
+	var generated_index int
+	if len(possible_nodes) > 0 {
+		generated_index = rand.Intn(len(possible_nodes))
+	} else {
+		return nil, status.Error(codes.NotFound, "Node not available")
+	}
+
+	var err error = nil
+	for i := 0; i < len(possible_nodes); i++ {
+		node := possible_nodes[(generated_index+i)%len(possible_nodes)]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		out, grpc_err := kvClient.GetList(ctx, &proto.GetListRequest{Key: key})
+
+		if grpc_err != nil {
+			err = grpc_err
+			continue
+		}
+
+		return out.Value, nil
+	}
+	return nil, err
+}
+
+// SetList
+func (kv *Kv) SetList(ctx context.Context, key string, value []string, ttl time.Duration) error {
+	// calculate the appropriate shard, using the function in util.go
+	shard := GetShardForKey(key, kv.shardMap.NumShards())
+
+	// Use the provided ShardMap instance in Kv.shardMap to find the set of nodes which host the shard
+	nodes := kv.shardMap.NodesForShard(shard)
+
+	// Q: error if no nodes found?
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	// start loop to check nodes, starting from the randomly generated index
+	err := error(nil)
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		// Use the provided ClientPool.GetClient to get a KvClient to use to send the request
+		// GetClient: returns a KvClient for a given node if one can be created
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		// concurrent requests to Set (better to make entire section of loop in goroutine?)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, grpc_err := kvClient.SetList(ctx, &proto.SetListRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds()})
+
+			if grpc_err != nil {
+				err = grpc_err
+			}
+
+		}()
+	}
+
+	wg.Wait()
+
+	return err
+}
+
+// SetSet
+func (kv *Kv) SetSet(ctx context.Context, key string, value []string, ttl time.Duration) error {
+	// calculate the appropriate shard, using the function in util.go
+	shard := GetShardForKey(key, kv.shardMap.NumShards())
+
+	// Use the provided ShardMap instance in Kv.shardMap to find the set of nodes which host the shard
+	nodes := kv.shardMap.NodesForShard(shard)
+
+	// Q: error if no nodes found?
+	if len(nodes) == 0 {
+		return status.Error(codes.NotFound, "Node not available")
+	}
+
+	// start loop to check nodes, starting from the randomly generated index
+	err := error(nil)
+	var wg sync.WaitGroup
+
+	for i := 0; i < len(nodes); i++ {
+		// Use the provided ClientPool.GetClient to get a KvClient to use to send the request
+		// GetClient: returns a KvClient for a given node if one can be created
+		node := nodes[i]
+		kvClient, client_err := kv.clientPool.GetClient(node)
+
+		if client_err != nil {
+			err = client_err
+			continue
+		}
+
+		// concurrent requests to Set (better to make entire section of loop in goroutine?)
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			_, grpc_err := kvClient.SetSet(ctx, &proto.SetSetRequest{Key: key, Value: value, TtlMs: ttl.Milliseconds()})
+
+			if grpc_err != nil {
+				err = grpc_err
+			}
+
+		}()
+	}
+
+	wg.Wait()
+
+	return err
 }

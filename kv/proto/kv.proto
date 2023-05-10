@@ -152,6 +152,40 @@ message CheckSortedSetResponse {
 	bool status = 1;
 }
 
+message SetListRequest {
+	string key = 1;
+	repeated string value = 2;
+	int64 ttl_ms = 3;
+}
+
+message SetListResponse {}
+
+message SetSetRequest {
+	string key = 1;
+	repeated string value = 2;
+	int64 ttl_ms = 3;
+}
+
+message SetSetResponse {}
+
+message GetListRequest {
+	string key = 1;
+}
+
+message GetListResponse {
+	repeated string value = 1;
+	bool was_found = 2;
+}
+
+message GetSetRequest {
+	string key = 1;
+}
+
+message GetSetResponse {
+	repeated string value = 1;
+	bool was_found = 2;
+}
+
 service Kv {
 	rpc Get(GetRequest) returns (GetResponse);
 	rpc Set(SetRequest) returns (SetResponse);
@@ -173,6 +207,11 @@ service Kv {
 	rpc CheckList(CheckListRequest) returns (CheckListResponse);
 	rpc CheckSet(CheckSetRequest) returns (CheckSetResponse);
 	rpc CheckSortedSet(CheckSortedSetRequest) returns (CheckSortedSetResponse);
+
+	rpc SetList(SetListRequest) returns (SetListResponse);
+	rpc SetSet(SetSetRequest) returns (SetSetResponse);
+	rpc GetList(GetListRequest) returns (GetListResponse);
+	rpc GetSet(GetSetRequest) returns (GetSetResponse);
 
 	rpc MultiSet(MultiSetRequest) returns (MultiSetResponse);
 	rpc CAS(CASRequest) returns (CASResponse);

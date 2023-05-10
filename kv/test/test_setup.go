@@ -232,6 +232,25 @@ func (ts *TestSetup) GetRange(key string, start int64, end int64) ([]string, err
 	return ts.kv.GetRange(ts.ctx, key, start, end)
 }
 
+func (ts *TestSetup) SetList(key string, value []string, ttl time.Duration) error {
+	return ts.kv.SetList(ts.ctx, key, value, ttl)
+}
+
+func (ts *TestSetup) SetSet(key string, value []string, ttl time.Duration) error {
+	return ts.kv.SetSet(ts.ctx, key, value, ttl)
+}
+
+// GetList
+// GetSet
+
+func (ts *TestSetup) GetList(key string) ([]string, error) {
+	return ts.kv.GetList(ts.ctx, key)
+}
+
+func (ts *TestSetup) GetSet(key string) ([]string, error) {
+	return ts.kv.GetSet(ts.ctx, key)
+}
+
 func (ts *TestSetup) UpdateShardMapping(shardsToNodes map[int][]string) {
 	state := kv.ShardMapState{
 		Nodes:         ts.shardMap.Nodes(),

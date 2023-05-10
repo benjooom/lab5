@@ -155,6 +155,11 @@ type TestClient struct {
 	cASResponse      *proto.CASResponse
 	getRangeResponse *proto.GetRangeResponse
 
+	getSetResponse  *proto.GetSetResponse
+	setSetResponse  *proto.SetSetResponse
+	getListResponse *proto.GetListResponse
+	setListResponse *proto.SetListResponse
+
 	latencyInjection *time.Duration
 }
 
@@ -549,4 +554,78 @@ func (c *TestClient) GetRange(ctx context.Context, req *proto.GetRangeRequest, o
 		return c.getRangeResponse, nil
 	}
 	return c.server.GetRange(ctx, req)
+}
+
+func (c *TestClient) GetSet(ctx context.Context, req *proto.GetSetRequest, opts ...grpc.CallOption) (*proto.GetSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+
+	if c.getSetResponse != nil {
+		return c.getSetResponse, nil
+	}
+	return c.server.GetSet(ctx, req)
+}
+
+// SetSet
+func (c *TestClient) SetSet(ctx context.Context, req *proto.SetSetRequest, opts ...grpc.CallOption) (*proto.SetSetResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+
+	if c.setSetResponse != nil {
+		return c.setSetResponse, nil
+	}
+	return c.server.SetSet(ctx, req)
+}
+
+func (c *TestClient) SetList(ctx context.Context, req *proto.SetListRequest, opts ...grpc.CallOption) (*proto.SetListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+
+	if c.err != nil {
+		return nil, c.err
+	}
+
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+
+	if c.setListResponse != nil {
+		return c.setListResponse, nil
+	}
+	return c.server.SetList(ctx, req)
+}
+
+func (c *TestClient) GetList(ctx context.Context, req *proto.GetListRequest, opts ...grpc.CallOption) (*proto.GetListResponse, error) {
+	c.mutex.RLock()
+	defer c.mutex.RUnlock()
+	atomic.AddUint64(&c.requestsSent, 1)
+
+	if c.err != nil {
+		return nil, c.err
+	}
+	if c.latencyInjection != nil {
+		time.Sleep(*c.latencyInjection)
+	}
+
+	if c.getListResponse != nil {
+		return c.getListResponse, nil
+	}
+	return c.server.GetList(ctx, req)
 }

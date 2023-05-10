@@ -773,6 +773,199 @@ func (server *KvServerImpl) GetShardContents(
 
 // LAB 5 NEW FUNCTIONS:
 
+func (server *KvServerImpl) GetList(
+	ctx context.Context,
+	request *proto.GetListRequest,
+) (*proto.GetListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.GetListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.GetListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	values, ok := server.GetListDB().GetList(request.Key, shard)
+	if !ok {
+		return &proto.GetListResponse{}, nil
+	}
+
+	return &proto.GetListResponse{Value: values, WasFound: true}, nil
+}
+
+func (database *KvServerState) GetList(
+	key string,
+	shard int,
+) ([]string, bool) {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return nil, false
+	}
+
+	entry := stripe.state[key].(List)
+
+	if entry.ttl.Before(time.Now()) {
+		return nil, false
+	}
+
+	return entry.value, true
+}
+
+func (server *KvServerImpl) SetList(
+	ctx context.Context,
+	request *proto.SetListRequest,
+) (*proto.SetListResponse, error) {
+
+	if request.Key == "" {
+		return &proto.SetListResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.SetListResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetListDB().SetList(request.Key, request.Value, expireyTime, shard)
+	if !ok {
+		return &proto.SetListResponse{}, nil
+	}
+	return &proto.SetListResponse{}, nil
+}
+
+func (database *KvServerState) SetList(
+	key string,
+	value []string,
+	expiry time.Time,
+	shard int,
+) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	stripe.state[key] = List{value: value, ttl: expiry}
+	return true
+}
+
+func (server *KvServerImpl) GetSet(
+	ctx context.Context,
+	request *proto.GetSetRequest,
+) (*proto.GetSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.GetSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.GetSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	values, ok := server.GetSetDB().GetSet(request.Key, shard)
+	if !ok {
+		return &proto.GetSetResponse{}, nil
+	}
+
+	return &proto.GetSetResponse{Value: values, WasFound: true}, nil
+}
+
+func (database *KvServerState) GetSet(
+	key string,
+	shard int,
+) ([]string, bool) {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+
+	if _, ok := stripe.state[key]; !ok {
+		return nil, false
+	}
+
+	entry := stripe.state[key].(Set)
+
+	if entry.ttl.Before(time.Now()) {
+		return nil, false
+	}
+
+	// Get the keys from the map
+	value := make([]string, 0, len(entry.value))
+	for k := range entry.value {
+		value = append(value, k)
+	}
+
+	return value, true
+}
+
+func (server *KvServerImpl) SetSet(
+	ctx context.Context,
+	request *proto.SetSetRequest,
+) (*proto.SetSetResponse, error) {
+
+	if request.Key == "" {
+		return &proto.SetSetResponse{}, status.Error(codes.InvalidArgument, "Empty keys are not allowed")
+	}
+
+	expireyTime := time.Now().Add(time.Millisecond * time.Duration(request.TtlMs))
+
+	server.rpcMutex.Lock()
+	server.rpcMutex.Unlock()
+	shard := GetShardForKey(request.Key, server.shardMap.NumShards())
+
+	server.mySL.RLock()
+	if !slices.Contains(server.myShards, shard) {
+		server.mySL.RUnlock()
+		return &proto.SetSetResponse{}, status.Error(codes.NotFound, "Incorrect shard")
+	}
+	server.mySL.RUnlock()
+
+	ok := server.GetSetDB().SetSet(request.Key, request.Value, expireyTime, shard)
+	if !ok {
+		return &proto.SetSetResponse{}, nil
+	}
+	return &proto.SetSetResponse{}, nil
+}
+
+func (database *KvServerState) SetSet(
+	key string,
+	value []string,
+	expiry time.Time,
+	shard int,
+) bool {
+	stripe := database.stripes[shard]
+	stripe.mutex.Lock()
+	defer stripe.mutex.Unlock()
+	// Create map[string]bool to represent set of values in value
+	set := make(map[string]bool)
+	for _, v := range value {
+		set[v] = true
+	}
+	stripe.state[key] = Set{value: set, ttl: expiry}
+	return true
+}
+
 func (server *KvServerImpl) CreateList(
 	ctx context.Context,
 	request *proto.CreateListRequest,
