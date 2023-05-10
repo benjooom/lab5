@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Correctness checker to run alongside the stress tester.
@@ -104,9 +106,11 @@ type ConsistencyChecker struct {
 func MakeConsistencyChecker() *ConsistencyChecker {
 	return &ConsistencyChecker{
 		values:            make(map[string]map[string]stateValue),
+		listValues:        make(map[string][]stateValue),
 		overwrittenValues: make(map[string]map[string]stateValue),
 		version:           make(map[string]int),
 		rc:                make(map[string]int),
+		rcList:            make(map[string]int),
 	}
 }
 
@@ -183,6 +187,9 @@ func (cc *ConsistencyChecker) BeginAppendSlice(key string) int {
 	return cc.version[key]
 }
 
+/*
+Unlike reads, the lists don't have TTLs
+*/
 func (cc *ConsistencyChecker) CompleteAppendSlice(
 	key, value string,
 	err error,
@@ -206,6 +213,9 @@ func (cc *ConsistencyChecker) CompleteAppendSlice(
 		err:                 err,
 	}
 
+	if cc.listValues[key] == nil {
+		cc.listValues[key] = make([]stateValue, 0)
+	}
 	cc.listValues[key] = append(cc.listValues[key], newVal)
 
 	cc.rcList[key] -= 1 // count as a completed write?
@@ -287,6 +297,7 @@ func (cc *ConsistencyChecker) CheckCheckSliceCorrect(key, value string, wasFound
 	defer cc.mutex.RUnlock()
 	currentVersion := cc.version[key]
 	if currentVersion != initialVersion || writesPending || cc.rcList[key] != 0 { // should not be concurrently updated
+		logrus.Printf("%d %d %b %d", currentVersion, initialVersion, writesPending, cc.rcList[key])
 		return nil
 	}
 
