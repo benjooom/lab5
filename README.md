@@ -18,10 +18,10 @@ This key-value store has implemented various data types.
 ### New APIs
 
 - MultiSet:
-  - Gaurantees: is atomic in xyz context
+  - Guarantees: is atomic in xyz context
 
 - Compare-And-Swap:
-  - Gaurantees: will only update the key's value if the present key matches the expected key.
+  - Guarantees: will only update the key's value if the present key matches the expected key.
 
 ## Deployment
 
