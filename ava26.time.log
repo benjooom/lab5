@@ -5,12 +5,20 @@ Date  Started  Spent Work completed
 ----  -------  ----  --------------
 04/22  2:00pm  1:30  Short group meeting to discuss project plan
 05/01  3:30pm  1:00  Running commands for protobuf, met with group to discuss protobuf
-05/03 12:00pm  0:30  Started writing MultiSet function
+05/03 12:00pm  1:30  Started writing MultiSet function
 05/03  4:00pm  1:30  Finished writing rough MultiSet function (still uses Set, not custom Set)
 05/05  2:20pm  0:30  Setting up MultiSet client
-05/06  3:00pm  2:30  Wrote MultiSet client code and tested server
-05/06  8:00pm  3:30  Wrote MultiSet client and integration tests and fixed slight client bug
+05/06  3:00pm  3:00  Wrote MultiSet client code and tested server
+05/06  8:00pm  4:00  Wrote MultiSet client and integration tests and fixed slight client bug
+05/07 10:00am  1:00  Started writing the section of the write-up focused on MultiSet
+05/09  4:30pm  1:00  Added to MultiSet section and thought about MultiSet edge cases
+05/09  7:30pm  2:30  Helped Ben set up deployment, added to write-up, and looked at stress tester
+05/09 11:30pm  0:30  Worked on stress tester modifications
+05/10 10:00am  2:00  Finished stress tester without correctness checks
+05/10  1:00pm  3:30  Cleaned up lab and write-up
                ----
-              00:00  TOTAL time spent
+              23:30  TOTAL time spent
 
-Outside of my group and Xiao, the only outside resource I consulted was this example of how to sort Go maps using built-in Go functions. https://www.geeksforgeeks.org/how-to-sort-golang-map-by-keys-or-values/#
+I only worked with my group and Xiao.
+
+I really enjoyed working on this project. The biggest thing I learned was how to conceptually design an API like MultiSet, now that there was no lengthy documentation or edge case tests for me to work with. I had to discuss with my teammates possible designs and tradeoffs (e.g. partial/full atomicity vs. overhead) and think about special behaviors (e.g. duplicate keys) and how to best handle these cases. Working with source code with little documentation was a large challenge for this assignment, especially for the stress tester. Although I'd worked with the stress tester before for lab4, our team didn't modify any of the stress tester code, so this was the first time I had to closely look through the code and add my own functions and variables.

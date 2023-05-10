@@ -244,7 +244,7 @@ func TestListPopNonExistent(t *testing.T) {
 	assert.Equal(t, "", value)
 }
 
-func TestGetRangeBasic(t *testing.T) {
+func TestSortedSetGetRangeBasic(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -275,7 +275,7 @@ func TestGetRangeBasic(t *testing.T) {
 
 }
 
-func TestGetRangeComplex(t *testing.T) {
+func TestSortedSetGetRangeComplex(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -313,7 +313,7 @@ func TestGetRangeComplex(t *testing.T) {
 
 }
 
-func TestGetRangeEmpty(t *testing.T) {
+func TestSortedSetGetRangeEmpty(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Create a list
@@ -429,7 +429,7 @@ func TestSortedSetTtl(t *testing.T) {
 }
 
 // Test that we can set an entire list and then get it back
-func TestSetList(t *testing.T) {
+func TestListGetSet(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Set the list
@@ -453,11 +453,16 @@ func TestSetSet(t *testing.T) {
 	// Get the set
 	values, err := setup.GetSet("gnd6")
 	assert.Nil(t, err)
-	assert.Equal(t, []string{"alice", "bob", "charlie"}, values)
+
+	// NOTE: Can not use an Equal bc Set does not gaurantee order
+	assert.Contains(t, values, "alice")
+	assert.Contains(t, values, "bob")
+	assert.Contains(t, values, "charlie")
+
 }
 
 // Test that we can pop off the first element of a list
-func TestPopList(t *testing.T) {
+func TestListGetSetWithPop(t *testing.T) {
 	setup := MakeTestSetup(MakeBasicOneShard())
 
 	// Set the list
@@ -473,4 +478,159 @@ func TestPopList(t *testing.T) {
 	values, err := setup.GetList("gnd6")
 	assert.Nil(t, err)
 	assert.Equal(t, []string{"bob", "charlie"}, values)
+}
+
+func TestListIntegrationBasic(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a list
+	err := setup.CreateList("gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the list
+	err = setup.AppendList("gnd6", "gabe")
+	assert.Nil(t, err)
+
+	// Check value in list
+	wasFound, err := setup.CheckList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// Remove value from list
+	removed, err := setup.RemoveList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, removed)
+
+	// Check value not in list
+	wasFound, err = setup.CheckList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+}
+
+func TestListIntegrationMultipleAppend(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a list
+	err := setup.CreateList("gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the list
+	err = setup.AppendList("gnd6", "gabe")
+	assert.Nil(t, err)
+
+	// Add a duplicate value to the list
+	err = setup.AppendList("gnd6", "gabe")
+	assert.Nil(t, err)
+
+	// Check value in list
+	wasFound, err := setup.CheckList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// Remove 1 value from list
+	removed, err := setup.RemoveList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, removed)
+
+	// Check other value still in list
+	wasFound, err = setup.CheckList("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+}
+
+func TestSetIntegrationBasic(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a set
+	err := setup.CreateSet("gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the set
+	err = setup.AppendSet("gnd6", "gabe")
+	assert.Nil(t, err)
+
+	// Check value in set
+	wasFound, err := setup.CheckSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// Remove value from set
+	removed, err := setup.RemoveSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, removed)
+
+	// Check value not in set
+	wasFound, err = setup.CheckSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+}
+
+func TestSortedSetIntegrationBasic(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a sorted set
+	err := setup.CreateSortedSet("gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Add a value to the sorted set
+	err = setup.AppendSortedSet("gnd6", "gabe", 50)
+	assert.Nil(t, err)
+
+	// Add value a second time (should be ignored)
+	err = setup.AppendSortedSet("gnd6", "gabe", 50)
+	assert.Nil(t, err)
+
+	// Check value in sorted set
+	wasFound, err := setup.CheckSortedSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, wasFound)
+
+	// Remove value from sorted set
+	removed, err := setup.RemoveSortedSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.True(t, removed)
+
+	// Check value not in sorted set
+	wasFound, err = setup.CheckSortedSet("gnd6", "gabe")
+	assert.Nil(t, err)
+	assert.False(t, wasFound)
+}
+
+func TestSortedSetIntegrationComplex(t *testing.T) {
+	setup := MakeTestSetup(MakeBasicOneShard())
+
+	// Create a list
+	err := setup.CreateSortedSet("gnd6", 5*time.Second)
+	assert.Nil(t, err)
+
+	// Add a values to the list
+	err = setup.AppendSortedSet("gnd6", "alice", 1)
+	assert.Nil(t, err)
+	err = setup.AppendSortedSet("gnd6", "ben", 2)
+	assert.Nil(t, err)
+	err = setup.AppendSortedSet("gnd6", "joe", 3)
+	assert.Nil(t, err)
+	err = setup.AppendSortedSet("gnd6", "gabe", 4)
+	assert.Nil(t, err)
+
+	// Get range of values from list
+	values, err := setup.GetRange("gnd6", 2, 2)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"ben"}, values)
+
+	// Remove ben
+	removed, err := setup.RemoveSortedSet("gnd6", "ben")
+	assert.Nil(t, err)
+	assert.True(t, removed)
+
+	// Joe becomes new 2nd rank
+	values, err = setup.GetRange("gnd6", 2, 2)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"joe"}, values)
+
+	// Should return entire list
+	values, err = setup.GetRange("gnd6", 1, -1)
+	assert.Nil(t, err)
+	assert.Equal(t, []string{"alice", "joe", "gabe"}, values)
+
 }
