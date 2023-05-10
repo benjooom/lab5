@@ -18,7 +18,7 @@ This key-value store has implemented various data types.
 ### New APIs
 
 - MultiSet:
-  - Guarantees: is atomic in xyz context
+  - Guarantees: per-shard node atomicity, partial failures due to nodes possible (similiar to Set)
 
 - Compare-And-Swap:
   - Guarantees: will only update the key's value if the present key matches the expected key.
